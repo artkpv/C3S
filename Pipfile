@@ -11,10 +11,9 @@ datasets = "*"
 transformers = "*"
 sklearn = "*"
 scikit-learn = "*"
-eleuther-elk = {editable = true, path = "./../elk"}
 
 [dev-packages]
 ipykernel = "*"
 
 [requires]
-python_version = "3.11"
+python_version = "3.8"
