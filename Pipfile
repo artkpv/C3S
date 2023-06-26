@@ -1,0 +1,20 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+tqdm = "*"
+numpy = "*"
+torch = "*"
+datasets = "*"
+transformers = "*"
+sklearn = "*"
+scikit-learn = "*"
+eleuther-elk = {editable = true, path = "./../elk"}
+
+[dev-packages]
+ipykernel = "*"
+
+[requires]
+python_version = "3.11"
