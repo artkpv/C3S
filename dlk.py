@@ -14,6 +14,8 @@ from pprint import pp
 from transformer_lens.hook_points import HookPoint
 from transformer_lens import utils, HookedTransformer, HookedTransformerConfig, FactoredMatrix, ActivationCache
 
+import elk 
+
 # %%
 imdb_ds = load_dataset('imdb')
 # %%
@@ -64,16 +66,19 @@ with torch.inference_mode():
     _, cache_true = gpt2_xl.run_with_cache(sample_true, remove_batch_dim=True)
 
 # %%
-probe = torch.load('./data/gpt2-xl/imdb/festive-elion/reporters/layer_47.pt')
-pp(probe.keys())
-pp(probe['probe.0.weight'].shape)
-pp(probe['probe.0.bias'].shape)
 #%%
 for layer in range(1, 48):
+    probe = torch.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_{layer}.pt')
+    pp(probe.key())
     act0 = cache_false['mlp_out', layer][-1].cpu()
     act1 = cache_true['mlp_out', layer][-1].cpu()
-    p0 = act0 @ probe['probe.0.weight'].T + probe['probe.0.bias']
-    p1 = act1 @ probe['probe.0.weight'].T + probe['probe.0.bias']
+    p0 = (act0 @ probe['probe.0.weight'].T + probe['probe.0.bias']).sigmoid().item()
+    p1 = (act1 @ probe['probe.0.weight'].T + probe['probe.0.bias']).sigmoid().item()
     confidence = 0.5*(p0 + (1-p1))
     pp(f'l {layer} {p0=} {p1=} {confidence=}')
+# %%
+
+probe = torch.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_47.pt')
+pp(probe['norm.mean_x'].shape)
+pp(probe['scale'])
 # %%

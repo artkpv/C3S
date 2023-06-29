@@ -13,8 +13,10 @@ sklearn = "*"
 scikit-learn = "*"
 sentencepiece = "*"
 protobuf = "==3.20"
-eleuther-elk = {editable = true, path = "./../elk"}
 transformer-lens = "*"
+pynvml = "*"
+eleuther-elk = {editable = true, path = "./../elk"}
+simple-parsing = "*"
 
 [dev-packages]
 ipykernel = "*"
