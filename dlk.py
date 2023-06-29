@@ -16,6 +16,7 @@ from transformer_lens import utils, HookedTransformer, HookedTransformerConfig, 
 
 import elk 
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # %%
 imdb_ds = load_dataset('imdb')
 # %%
@@ -78,7 +79,10 @@ for layer in range(1, 48):
     pp(f'l {layer} {p0=} {p1=} {confidence=}')
 # %%
 
-probe = torch.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_47.pt')
-pp(probe['norm.mean_x'].shape)
-pp(probe['scale'])
+probe_pt = torch.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_47.pt')
+reporter = elk.training.CcsReporter(elk.training.CcsReporterConfig(), in_features=probe_pt['in_features'])
+for k,v in probe_pt.items():
+    if isinstance(v, torch.Tensor):
+        reporter['k'] = v
+pp(reporter)
 # %%
