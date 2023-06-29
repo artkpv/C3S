@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "ae82233467ec10edef9cc3352756672d98082b69c1c3b6e7a87ba7712bdb6ce4"
+            "sha256": "ad87226caebe7ab4b36b99d0995d5033a59db2121814583e9cacf5f25b3d4de3"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -823,6 +823,14 @@
             ],
             "version": "==0.1.2"
         },
+        "plotly": {
+            "hashes": [
+                "sha256:3508876bbd6aefb8a692c21a7128ca87ce42498dd041efa5c933ee44b55aab24",
+                "sha256:822eabe53997d5ebf23c77e1d1fcbf3bb6aa745eb05d532afd4b6f9a2e2ab02f"
+            ],
+            "index": "pypi",
+            "version": "==5.15.0"
+        },
         "protobuf": {
             "hashes": [
                 "sha256:001c2160c03b6349c04de39cf1a58e342750da3632f6978a1634a3dcca1ec10e",
@@ -1370,6 +1378,14 @@
             ],
             "markers": "python_version >= '3.8'",
             "version": "==1.12"
+        },
+        "tenacity": {
+            "hashes": [
+                "sha256:2f277afb21b851637e8f52e6a613ff08734c347dc19ade928e519d7d2d8569b0",
+                "sha256:43af037822bd0029025877f3b2d97cc4d7bb0c2991000a3d59d71517c5c969e0"
+            ],
+            "markers": "python_version >= '3.6'",
+            "version": "==8.2.2"
         },
         "threadpoolctl": {
             "hashes": [

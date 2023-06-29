@@ -86,3 +86,8 @@ for k,v in probe_pt.items():
         reporter['k'] = v
 pp(reporter)
 # %%
+truthfulqa = load_dataset('truthful_qa', 'generation')
+# %%
+truthfulqa['validation'][0]
+
+# %%
