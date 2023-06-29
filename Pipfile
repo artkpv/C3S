@@ -14,6 +14,7 @@ scikit-learn = "*"
 sentencepiece = "*"
 protobuf = "==3.20"
 eleuther-elk = {editable = true, path = "./../elk"}
+transformer-lens = "*"
 
 [dev-packages]
 ipykernel = "*"
