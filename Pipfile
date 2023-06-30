@@ -18,6 +18,7 @@ pynvml = "*"
 eleuther-elk = {editable = true, path = "./../elk"}
 simple-parsing = "*"
 plotly = "==5.14.1"
+circuitsvis = "*"
 
 [dev-packages]
 ipykernel = "*"

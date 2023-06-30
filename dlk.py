@@ -16,7 +16,7 @@ from transformer_lens import utils, HookedTransformer, HookedTransformerConfig, 
 
 import elk 
 
-import cv
+import circuitsvis as cv
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # %%
@@ -62,6 +62,12 @@ def t5_experiments():
 # Warning. This takes a lot of memory (+16GB).
 gpt2_xl: HookedTransformer = HookedTransformer.from_pretrained("gpt2-xl")
 gpt2_xl.eval()
+
+# %%
+gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
+tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
+gpt2_xl.eval()
+
 # %%
 sample = imdb_ds['train']['text'][156]
 sample_false = f'{sample}\nDid the reviewer find this movie good or bad?\nGood'
@@ -81,18 +87,11 @@ for layer in range(1, 48):
     confidence = 0.5*(p0 + (1-p1))
     pp(f'l {layer} {p0=} {p1=} {confidence=}')
 # %%
-
 probe_pt = torch.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_47.pt')
 reporter = elk.training.Reporter.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_47.pt', map_location=device)
 #reporter.eval()
 #reporter = elk.training.CcsReporter(elk.training.CcsReporterConfig(), in_features=probe_pt['in_features'])
 pp(reporter)
-
-# %%
-
-gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
-tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
-gpt2_xl.eval()
 
 # %%
 truthfulqa = load_dataset('truthful_qa', 'generation')
@@ -180,4 +179,10 @@ pp(dataset[0][1])
 for inx, label in dataset[0][1]:
     print(inx, label)
     pp(res[inx-1])
+# %%
+
+t_strs = tokenizer.convert_ids_to_tokens(dataset[0][0])
+pp(t_strs)
+
+cv.tokens.colored_tokens(t_strs, res)
 # %%
