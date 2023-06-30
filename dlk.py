@@ -109,7 +109,7 @@ pp(len(correct_statements))
 # %%
 # Create dataset with x as concatenated correct and incorrect 2..4 statements,
 # and y as several 0 or 1 depending on whether a correct or incorrect statement is the correct answer.
-dataset = []    
+dataset = []
 #tokenizer = gpt2_xl.tokenizer
 while correct_statements or incorrect_statements:
     x : torch.Tensor = None
@@ -181,8 +181,10 @@ for inx, label in dataset[0][1]:
     pp(res[inx-1])
 # %%
 
-t_strs = tokenizer.convert_ids_to_tokens(dataset[0][0])
+t_strs = [s.replace('Ġ', ' ') for s in tokenizer.convert_ids_to_tokens(dataset[0][0])]
 pp(t_strs)
 
 cv.tokens.colored_tokens(t_strs, res)
+# %%
+pp(tokenizer.decode(dataset[0][0]))
 # %%
