@@ -57,6 +57,7 @@ def t5_experiments():
 
 
 # %%
+# Warning. This takes a lot of memory (+16GB).
 gpt2_xl: HookedTransformer = HookedTransformer.from_pretrained("gpt2-xl")
 # %%
 sample = imdb_ds['train']['text'][156]
@@ -80,16 +81,40 @@ for layer in range(1, 48):
 # %%
 
 probe_pt = torch.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_47.pt')
-reporter = elk.training.CcsReporter(elk.training.CcsReporterConfig(), in_features=probe_pt['in_features'])
-for k,v in probe_pt.items():
-    if isinstance(v, torch.Tensor):
-        reporter['k'] = v
+reporter = elk.training.Reporter.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_47.pt', map_location=device)
+#reporter.eval()
+#reporter = elk.training.CcsReporter(elk.training.CcsReporterConfig(), in_features=probe_pt['in_features'])
 pp(reporter)
 # %%
 truthfulqa = load_dataset('truthful_qa', 'generation')
-# %%
-pp(len(truthfulqa['validation']))
-pp(np.mean([len(e['correct_answers']) for e in truthfulqa['validation']]))
-pp(np.mean([len(e['incorrect_answers']) for e in truthfulqa['validation']]))
+# Construct statements from each correct_answer and incorrect_answer:
+correct_statements = []
+incorrect_statements = []
+for e in truthfulqa['validation']:
+    for correct_answer in e['correct_answers']:
+        correct_statements.append(f"{e['question']} {correct_answer}.")
+    for incorrect_answer in e['incorrect_answers']:
+        incorrect_statements.append(f"{e['question']} {incorrect_answer}.")
+pp(len(incorrect_statements))
+pp(len(correct_statements))
 
+# %%
+# Create dataset with x as concatenated correct and incorrect 2..4 statements,
+# and y as several 0 or 1 depending on whether a correct or incorrect statement is the correct answer.
+dataset = []    
+tokenizer = gpt2_xl.tokenizer
+while correct_statements or incorrect_statements:
+    x = []
+    y = []
+    for _ in range(np.random.randint(2, 5)):
+        label =  np.random.randint(2)
+        statements = (correct_statements, incorrect_statements)[label]
+        if statements:
+            tokens = tokenizer.encode( statements.pop(), return_tensors='pt')
+            x += tokens
+            inx = len(tokens) + (y[-1][0] if y else 0)
+            y.append((inx, label))
+    if len(x) > 1:
+        dataset.append((x, y))
+pp(dataset[0])        
 # %%
