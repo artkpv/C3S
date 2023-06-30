@@ -59,6 +59,7 @@ def t5_experiments():
 # %%
 # Warning. This takes a lot of memory (+16GB).
 gpt2_xl: HookedTransformer = HookedTransformer.from_pretrained("gpt2-xl")
+gpt2_xl.eval()
 # %%
 sample = imdb_ds['train']['text'][156]
 sample_false = f'{sample}\nDid the reviewer find this movie good or bad?\nGood'
@@ -104,17 +105,35 @@ pp(len(correct_statements))
 dataset = []    
 tokenizer = gpt2_xl.tokenizer
 while correct_statements or incorrect_statements:
-    x = []
+    x : torch.Tensor = None
     y = []
     for _ in range(np.random.randint(2, 5)):
         label =  np.random.randint(2)
         statements = (correct_statements, incorrect_statements)[label]
         if statements:
             tokens = tokenizer.encode( statements.pop(), return_tensors='pt')
-            x += tokens
-            inx = len(tokens) + (y[-1][0] if y else 0)
+            x = tokens if x is None else torch.concat((x, tokens), -1)
+            inx = tokens.shape[1] + (y[-1][0] if y else 0)
             y.append((inx, label))
-    if len(x) > 1:
+    if x is not None:
+        x.squeeze_(0)
         dataset.append((x, y))
 pp(dataset[0])        
+# %%
+with torch.inference_mode():
+    _, cache_true = gpt2_xl.run_with_cache(dataset[0][0])
+pp(cache_true['mlp_out', 47].shape)
+
+# %%
+reporter = elk.training.Reporter.load(f'./data/gpt2-xl/dbpedia_14/reporters/layer_47.pt', map_location=device)
+reporter.eval()
+pp(reporter)
+# %%
+with torch.inference_mode():
+    res = reporter(cache_true['mlp_out', 47][0]).sigmoid()
+pp(res)
+pp(dataset[0][1])
+for inx, label in dataset[0][1]:
+    print(inx, label)
+    pp(res[inx-1])
 # %%
