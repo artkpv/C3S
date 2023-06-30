@@ -17,7 +17,7 @@ transformer-lens = "*"
 pynvml = "*"
 eleuther-elk = {editable = true, path = "./../elk"}
 simple-parsing = "*"
-plotly = "*"
+plotly = "==5.14.1"
 
 [dev-packages]
 ipykernel = "*"

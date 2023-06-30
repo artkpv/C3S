@@ -88,6 +88,8 @@ pp(reporter)
 # %%
 truthfulqa = load_dataset('truthful_qa', 'generation')
 # %%
-truthfulqa['validation'][0]
+pp(len(truthfulqa['validation']))
+pp(np.mean([len(e['correct_answers']) for e in truthfulqa['validation']]))
+pp(np.mean([len(e['incorrect_answers']) for e in truthfulqa['validation']]))
 
 # %%
