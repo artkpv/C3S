@@ -8,13 +8,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from datasets import load_dataset
-from transformers import T5Tokenizer, T5ForConditionalGeneration
+from transformers import T5Tokenizer, T5ForConditionalGeneration, GPT2Model, GPT2Tokenizer
 from sklearn.linear_model import LogisticRegression
 from pprint import pp
 from transformer_lens.hook_points import HookPoint
 from transformer_lens import utils, HookedTransformer, HookedTransformerConfig, FactoredMatrix, ActivationCache
 
 import elk 
+
+import cv
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # %%
@@ -66,15 +68,14 @@ sample_false = f'{sample}\nDid the reviewer find this movie good or bad?\nGood'
 sample_true = f'{sample}\nDid the reviewer find this movie good or bad?\n Bad'
 with torch.inference_mode():
     _, cache_false = gpt2_xl.run_with_cache(sample_false, remove_batch_dim=True)
-    _, cache_true = gpt2_xl.run_with_cache(sample_true, remove_batch_dim=True)
+    _, cache = gpt2_xl.run_with_cache(sample_true, remove_batch_dim=True)
 
-# %%
 #%%
 for layer in range(1, 48):
     probe = torch.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_{layer}.pt')
     pp(probe.key())
     act0 = cache_false['mlp_out', layer][-1].cpu()
-    act1 = cache_true['mlp_out', layer][-1].cpu()
+    act1 = cache['mlp_out', layer][-1].cpu()
     p0 = (act0 @ probe['probe.0.weight'].T + probe['probe.0.bias']).sigmoid().item()
     p1 = (act1 @ probe['probe.0.weight'].T + probe['probe.0.bias']).sigmoid().item()
     confidence = 0.5*(p0 + (1-p1))
@@ -86,6 +87,13 @@ reporter = elk.training.Reporter.load(f'./data/gpt2-xl/imdb/festive-elion/report
 #reporter.eval()
 #reporter = elk.training.CcsReporter(elk.training.CcsReporterConfig(), in_features=probe_pt['in_features'])
 pp(reporter)
+
+# %%
+
+gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
+tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
+gpt2_xl.eval()
+
 # %%
 truthfulqa = load_dataset('truthful_qa', 'generation')
 # Construct statements from each correct_answer and incorrect_answer:
@@ -103,7 +111,7 @@ pp(len(correct_statements))
 # Create dataset with x as concatenated correct and incorrect 2..4 statements,
 # and y as several 0 or 1 depending on whether a correct or incorrect statement is the correct answer.
 dataset = []    
-tokenizer = gpt2_xl.tokenizer
+#tokenizer = gpt2_xl.tokenizer
 while correct_statements or incorrect_statements:
     x : torch.Tensor = None
     y = []
@@ -120,17 +128,53 @@ while correct_statements or incorrect_statements:
         dataset.append((x, y))
 pp(dataset[0])        
 # %%
-with torch.inference_mode():
-    _, cache_true = gpt2_xl.run_with_cache(dataset[0][0])
-pp(cache_true['mlp_out', 47].shape)
+# with torch.inference_mode():
+#     _, cache_true = gpt2_xl.run_with_cache(dataset[0][0])
+# pp(cache_true['mlp_out', 47].shape)
 
+with torch.inference_mode():
+    output = gpt2_xl.forward(dataset[0][0], output_hidden_states=True)
+    cache = output['hidden_states']
+# %%
+pp(f'{len(cache)=}')
+pp(f'{cache[48].shape=}')
 # %%
 reporter = elk.training.Reporter.load(f'./data/gpt2-xl/dbpedia_14/reporters/layer_47.pt', map_location=device)
 reporter.eval()
 pp(reporter)
 # %%
 with torch.inference_mode():
-    res = reporter(cache_true['mlp_out', 47][0]).sigmoid()
+    #res = reporter(cache_true['mlp_out', 47][0]).sigmoid()
+    res = reporter(cache[47].to(device))[0].sigmoid()
+pp(res.shape)
+pp(dataset[0][1])
+for inx, label in dataset[0][1]:
+    print(inx, label)
+    pp(res[inx-1])
+# %%
+
+reporter = elk.training.Reporter.load(f'./data/gpt2-xl/ag_news/reporters/layer_47.pt', map_location=device)
+reporter.eval()
+pp(reporter)
+
+# %%
+with torch.inference_mode():
+    #res = reporter(cache_true['mlp_out', 47][0]).sigmoid()
+    res = reporter(cache[47].to(device))[0].sigmoid()
+pp(res.shape)
+pp(dataset[0][1])
+for inx, label in dataset[0][1]:
+    print(inx, label)
+    pp(res[inx-1])
+# %%
+reporter = torch.load(f'./data/gpt2-xl/dbpedia_14/lr_models/layer_47.pt', map_location=device)[0]
+pp(reporter)
+# %%
+with torch.inference_mode():
+    #res = reporter(cache_true['mlp_out', 47][0]).sigmoid()
+    res = reporter(cache[47].to(device))
+    res = res[0]
+pp(res.shape)
 pp(res)
 pp(dataset[0][1])
 for inx, label in dataset[0][1]:
