@@ -116,9 +116,6 @@ with torch.inference_mode():
     #cache = output['hidden_states']
 
 # %%
-pp(f'{cache=}')
-
-# %%
 # Warning. Don't use torch.load.
 #reporter = elk.training.Reporter.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_47.pt', map_location=device)
 reporter = elk.training.Reporter.load(f'./data/gpt2-xl/dbpedia_14/reporters/layer_47.pt', map_location=device)
@@ -126,9 +123,9 @@ reporter.eval()
 pp(reporter)
 # %%
 with torch.inference_mode():
-    #pp(cache['mlp_out', 47].shape)
-    #res = reporter(cache['mlp_out', 47][0]).sigmoid()
-    res = reporter(cache[47].to(device))[0].sigmoid()
+    pp(cache['mlp_out', 47].shape)
+    res = reporter(cache['mlp_out', 47][0]).sigmoid()
+    #res = reporter(cache[47].to(device))[0].sigmoid()
 pp(res.shape)
 pp(dataset[0][1])
 for inx, label in dataset[0][1]:
@@ -141,8 +138,8 @@ pp(reporter)
 
 # %%
 with torch.inference_mode():
-    #res = reporter(cache['mlp_out', 47][0]).sigmoid()
-    res = reporter(cache[47].to(device))[0].sigmoid()
+    res = reporter(cache['mlp_out', 47][0]).sigmoid()
+    #res = reporter(cache[47].to(device))[0].sigmoid()
 pp(res.shape)
 pp(dataset[0][1])
 for inx, label in dataset[0][1]:
