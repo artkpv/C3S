@@ -19,6 +19,9 @@ import elk
 import circuitsvis as cv
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# %%
+# Experiments with T5 (UnifiedQA) model
 # %%
 imdb_ds = load_dataset('imdb')
 # %%
@@ -57,16 +60,23 @@ def t5_experiments():
     pp(l11cp['norm.mean_x'] @ output['decoder_hidden_states'][0][0,-1].T)
     pp(l11cp['norm.mean_x'] @ output['decoder_hidden_states'][0][1,-1].T)
 
+#t5_experiments()
 
 # %%
-# Warning. This takes a lot of memory (+16GB).
+# Experiments with GPT2-XL
+# Loading. Warning. This takes +16GB of RAM.
 gpt2_xl: HookedTransformer = HookedTransformer.from_pretrained("gpt2-xl")
 gpt2_xl.eval()
+tokenizer = gpt2_xl.tokenizer
+pp(gpt2_xl)
 
 # %%
-gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
-tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
-gpt2_xl.eval()
+# Or can use it from HuggingFace:
+
+# gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
+# tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
+# gpt2_xl.eval()
+# pp(gpt2_xl)
 
 # %%
 sample = imdb_ds['train']['text'][156]
@@ -86,11 +96,12 @@ for layer in range(1, 48):
     p1 = (act1 @ probe['probe.0.weight'].T + probe['probe.0.bias']).sigmoid().item()
     confidence = 0.5*(p0 + (1-p1))
     pp(f'l {layer} {p0=} {p1=} {confidence=}')
+
+
 # %%
-probe_pt = torch.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_47.pt')
+# Experimenting with TruthfulQA dataset.
+# %%
 reporter = elk.training.Reporter.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_47.pt', map_location=device)
-#reporter.eval()
-#reporter = elk.training.CcsReporter(elk.training.CcsReporterConfig(), in_features=probe_pt['in_features'])
 pp(reporter)
 
 # %%
@@ -187,4 +198,3 @@ pp(t_strs)
 cv.tokens.colored_tokens(t_strs, res)
 # %%
 pp(tokenizer.decode(dataset[0][0]))
-# %%
