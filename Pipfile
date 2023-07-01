@@ -19,6 +19,7 @@ eleuther-elk = {editable = true, path = "./../elk"}
 simple-parsing = "*"
 plotly = "==5.14.1"
 circuitsvis = "*"
+einops = "*"
 
 [dev-packages]
 ipykernel = "*"

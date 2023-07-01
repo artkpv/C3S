@@ -14,7 +14,7 @@ from sklearn.linear_model import LogisticRegression
 from pprint import pp
 from transformer_lens.hook_points import HookPoint
 from transformer_lens import utils, HookedTransformer, HookedTransformerConfig, FactoredMatrix, ActivationCache
-
+import einops
 import elk 
 
 import circuitsvis as cv
@@ -164,30 +164,47 @@ sample_true = f'{sample}\nDid the reviewer find this movie good or bad?\n Bad'
 #    _, cache = gpt2_xl.run_with_cache(sample_true, remove_batch_dim=True)
 
 #%%
+# Visualize probe scores across layers per each head:
+
 layers = gpt2_xl.cfg.n_layers
 heads = gpt2_xl.cfg.n_heads
 #seq_len = gpt2_xl.cfg.n_ctx
-head_layer_score = torch.zeros((layers, heads + 1))
+head_layer_score = torch.zeros((layers, heads))
 
 def induction_score_hook(
     result: Float[Tensor, "batch seq head_idx d_model"],
     hook: HookPoint,
 ):
     global head_layer_score
-    induction_stripe = result.diagonal(dim1=-2, dim2=-1, offset=1-seq_len)
-    induction_score = einops.reduce(induction_stripe, "batch head_index position -> head_index", "mean")
-    head_layer_score[hook.layer(), :] = induction_score
+    layer = hook.layer()
+    probe = elk.training.Reporter.load(
+        f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_{layer}.pt', 
+        map_location=device
+    )
+    assert result.size(0) == 1, f"Expecting one sample but: {result.shape}"
+    score = probe(result[0, -1, :, :]).sigmoid()
+    head_layer_score[layer, :] = score
 
 gpt2_xl.run_with_hooks(
-    tokenizer.decode(sample_false),
+    tokenizer.encode(sample_false, return_tensors='pt'),
     return_type=None, # For efficiency, we don't need to calculate the logits
     fwd_hooks=[(
-        lambda name: name.endswith("result")
+        lambda name: name.endswith("result"),
         induction_score_hook
     )]
 )
 
+# %%
+# Plot the induction scores for each head in each layer
+imshow(
+    head_layer_score, 
+    labels={"x": "Head", "y": "Layer"}, 
+    title="Probe Score by Head", 
+    text_auto=".2f",
+    width=900, height=400
+)
 
+# %%
 for layer in range(layers):
     probe = elk.training.Reporter.load(
         f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_{layer}.pt', 

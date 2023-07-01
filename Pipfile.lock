@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "9f0ada3e817d31f9016500d916e096fc37c32982977dfca820edf71a360be4d5"
+            "sha256": "8a7f640193ff01a9aed0b9b25c61a71d6b5372bb667273a8f7472b168a89604c"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -303,7 +303,7 @@
                 "sha256:99149e46cc808956b174932fe563d920db4d6e5dadb8c6ecdaa7483b7ef7cfc3",
                 "sha256:f95f8d00f4ded90dbc4b19b6f98b177332614b0357dde66997f3ae5d474dc8c8"
             ],
-            "markers": "python_version >= '3.7'",
+            "index": "pypi",
             "version": "==0.6.1"
         },
         "eleuther-elk": {
