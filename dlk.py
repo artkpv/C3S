@@ -126,6 +126,7 @@ reporter.eval()
 pp(reporter)
 # %%
 with torch.inference_mode():
+    pp(cache['mlp_out', 47].shape)
     res = reporter(cache['mlp_out', 47][0]).sigmoid()
     #res = reporter(cache[47].to(device))[0].sigmoid()
 pp(res.shape)
