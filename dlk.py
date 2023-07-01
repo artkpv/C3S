@@ -22,7 +22,7 @@ import circuitsvis as cv
 from plotly_utils import imshow
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+pp(device)
 # %%
 # Experiments with T5 (UnifiedQA) model
 # %%
@@ -68,10 +68,11 @@ gpt2_xl.eval()
 tokenizer = gpt2_xl.tokenizer
 pp(gpt2_xl)
 
-#gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
-#tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
-#gpt2_xl.eval()
-#pp(gpt2_xl)
+# %%
+gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
+tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
+gpt2_xl.eval()
+pp(gpt2_xl)
 
 # %%
 # Experimenting with TruthfulQA dataset.
