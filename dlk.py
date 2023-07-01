@@ -4,9 +4,10 @@ from tqdm import tqdm
 import copy
 import numpy as np
 import torch
+from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
-
+from jaxtyping import Int, Float
 from datasets import load_dataset
 from transformers import T5Tokenizer, T5ForConditionalGeneration, GPT2Model, GPT2Tokenizer
 from sklearn.linear_model import LogisticRegression
@@ -158,14 +159,35 @@ cv.tokens.colored_tokens(t_strs, res)
 sample = imdb_ds['train']['text'][156]
 sample_false = f'{sample}\nDid the reviewer find this movie good or bad?\nGood'
 sample_true = f'{sample}\nDid the reviewer find this movie good or bad?\n Bad'
-with torch.inference_mode():
-    _, cache_false = gpt2_xl.run_with_cache(sample_false, remove_batch_dim=True)
-    _, cache = gpt2_xl.run_with_cache(sample_true, remove_batch_dim=True)
+#with torch.inference_mode():
+#    _, cache_false = gpt2_xl.run_with_cache(sample_false, remove_batch_dim=True)
+#    _, cache = gpt2_xl.run_with_cache(sample_true, remove_batch_dim=True)
 
 #%%
-layers = 48
+layers = gpt2_xl.cfg.n_layers
 heads = gpt2_xl.cfg.n_heads
+#seq_len = gpt2_xl.cfg.n_ctx
 head_layer_score = torch.zeros((layers, heads + 1))
+
+def induction_score_hook(
+    result: Float[Tensor, "batch seq head_idx d_model"],
+    hook: HookPoint,
+):
+    global head_layer_score
+    induction_stripe = result.diagonal(dim1=-2, dim2=-1, offset=1-seq_len)
+    induction_score = einops.reduce(induction_stripe, "batch head_index position -> head_index", "mean")
+    head_layer_score[hook.layer(), :] = induction_score
+
+gpt2_xl.run_with_hooks(
+    tokenizer.decode(sample_false),
+    return_type=None, # For efficiency, we don't need to calculate the logits
+    fwd_hooks=[(
+        lambda name: name.endswith("result")
+        induction_score_hook
+    )]
+)
+
+
 for layer in range(layers):
     probe = elk.training.Reporter.load(
         f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_{layer}.pt', 
@@ -178,3 +200,4 @@ for layer in range(layers):
     p1 = probe(act1).item() # (act1 @ probe['probe.0.weight'].T + probe['probe.0.bias']).sigmoid().item()
     confidence = 0.5*(p0 + (1-p1))
     pp(f'l {layer} {p0=} {p1=} {confidence=}')
+# %%
