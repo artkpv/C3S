@@ -27,20 +27,20 @@ pp(device)
 # Experiments with T5 (UnifiedQA) model
 # %%
 imdb_ds = load_dataset('imdb')
+samples = [
+f'''
+{imdb_ds['train']['text'][:1]}
+Did the reviewer find this movie good or bad? 
+bad
+''',
+f'''
+{imdb_ds['train']['text'][:1]}
+Did the reviewer find this movie good or bad? 
+good
+''',
+]
 # %%
 def t5_experiments():
-    samples = [
-    f'''
-    {imdb_ds['train']['text'][:1]}
-    Did the reviewer find this movie good or bad? 
-    bad
-    ''',
-    f'''
-    {imdb_ds['train']['text'][:1]}
-    Did the reviewer find this movie good or bad? 
-    good
-    ''',
-    ]
 
     model_name = "allenai/unifiedqa-t5-base" 
     tokenizer = T5Tokenizer.from_pretrained(model_name)
@@ -63,17 +63,17 @@ def t5_experiments():
 # %%
 # Experiments with GPT2-XL
 # Loading. Warning. This takes +16GB of RAM.
-gpt2_xl: HookedTransformer = HookedTransformer.from_pretrained("gpt2-xl")
-gpt2_xl.eval()
-tokenizer = gpt2_xl.tokenizer
-pp(gpt2_xl)
+# gpt2_xl: HookedTransformer = HookedTransformer.from_pretrained("gpt2-xl")
+# gpt2_xl.eval()
+# tokenizer = gpt2_xl.tokenizer
+# pp(gpt2_xl)
 
 # %%
-#gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
-#tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
-#gpt2_xl.eval()
-#pp(gpt2_xl)
-#
+gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
+tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
+gpt2_xl.eval()
+pp(gpt2_xl)
+
 # %%
 # Experimenting with TruthfulQA dataset.
 
@@ -111,45 +111,45 @@ while correct_statements or incorrect_statements:
 pp(dataset[0])        
 # %%
 with torch.inference_mode():
-    output, cache = gpt2_xl.run_with_cache(dataset[0][0])
-    #output = gpt2_xl.forward(dataset[0][0], output_hidden_states=True)
-    #cache = output['hidden_states']
+    #output, cache = gpt2_xl.run_with_cache(dataset[0][0])
+    output = gpt2_xl.forward(
+        dataset[0][0],
+        output_hidden_states=True, 
+        output_attentions=True,
+    )
+    cache = output['hidden_states']
+# %%
+pp('hidden states:')
+for i,e in enumerate(cache):
+    pp(f'{i} {e.shape}')
+pp('attentions:')
+for i,e in enumerate(output['attentions']):
+    pp(f'{i} {e.shape}')
+pp(output['last_hidden_state'].shape)
+# %%
+# Visualizing scores per tokens
+
+def visualize(layer, reporter):
+    with torch.inference_mode():
+        #pp(cache['mlp_out', layer].shape)
+        #res = reporter(cache['mlp_out', layer][0]).sigmoid()
+        res = reporter(cache[layer].to(device)).sigmoid()
+    pp(res)
+    pp(dataset[1])
+    for inx, label in dataset[1]:
+        print(inx, label)
+        pp(res[inx-1])
+
+    t_strs = [s.replace('Ġ', ' ') for s in tokenizer.convert_ids_to_tokens(dataset[0][0])]
+    display(cv.tokens.colored_tokens(t_strs, res))
 
 # %%
-# Warning. Don't use torch.load.
-#reporter = elk.training.Reporter.load(f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_47.pt', map_location=device)
-reporter = elk.training.Reporter.load(f'./data/gpt2-xl/dbpedia_14/reporters/layer_47.pt', map_location=device)
-reporter.eval()
-pp(reporter)
-# %%
-with torch.inference_mode():
-    pp(cache['mlp_out', 47].shape)
-    res = reporter(cache['mlp_out', 47][0]).sigmoid()
-    #res = reporter(cache[47].to(device))[0].sigmoid()
-pp(res.shape)
-pp(dataset[0][1])
-for inx, label in dataset[0][1]:
-    print(inx, label)
-    pp(res[inx-1])
-# %%
-reporter = elk.training.Reporter.load(f'./data/gpt2-xl/ag_news/reporters/layer_47.pt', map_location=device)
-reporter.eval()
-pp(reporter)
-
-# %%
-with torch.inference_mode():
-    res = reporter(cache['mlp_out', 47][0]).sigmoid()
-    #res = reporter(cache[47].to(device))[0].sigmoid()
-pp(res.shape)
-pp(dataset[0][1])
-for inx, label in dataset[0][1]:
-    print(inx, label)
-    pp(res[inx-1])
-
-# %%
-# Visualize
-t_strs = [s.replace('Ġ', ' ') for s in tokenizer.convert_ids_to_tokens(dataset[0][0])]
-cv.tokens.colored_tokens(t_strs, res)
+for dataset in ('dbpedia_14', 'ag_news', 'imdb'):
+    layer=47
+    reporter = elk.training.Reporter.load(f'./data/gpt2-xl/{dataset}/reporters/layer_{layer}.pt', map_location=device)
+    reporter.eval()
+    print(f'Probe gpt2-xl trained on {dataset} for {layer}:')
+    visualize(layer, reporter)
 
 # %%
 # Inner components search (IMDB dataset)
