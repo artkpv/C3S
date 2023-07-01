@@ -69,11 +69,11 @@ tokenizer = gpt2_xl.tokenizer
 pp(gpt2_xl)
 
 # %%
-gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
-tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
-gpt2_xl.eval()
-pp(gpt2_xl)
-
+#gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
+#tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
+#gpt2_xl.eval()
+#pp(gpt2_xl)
+#
 # %%
 # Experimenting with TruthfulQA dataset.
 
@@ -112,10 +112,9 @@ pp(dataset[0])
 # %%
 with torch.inference_mode():
     output, cache = gpt2_xl.run_with_cache(dataset[0][0])
+    #output = gpt2_xl.forward(dataset[0][0], output_hidden_states=True)
+    #cache = output['hidden_states']
 
-#with torch.inference_mode():
-#    output = gpt2_xl.forward(dataset[0][0], output_hidden_states=True)
-#    cache = output['hidden_states']
 # %%
 pp(f'{cache=}')
 
@@ -127,9 +126,9 @@ reporter.eval()
 pp(reporter)
 # %%
 with torch.inference_mode():
-    pp(cache['mlp_out', 47].shape)
-    res = reporter(cache['mlp_out', 47][0]).sigmoid()
-    #res = reporter(cache[47].to(device))[0].sigmoid()
+    #pp(cache['mlp_out', 47].shape)
+    #res = reporter(cache['mlp_out', 47][0]).sigmoid()
+    res = reporter(cache[47].to(device))[0].sigmoid()
 pp(res.shape)
 pp(dataset[0][1])
 for inx, label in dataset[0][1]:
@@ -142,8 +141,8 @@ pp(reporter)
 
 # %%
 with torch.inference_mode():
-    res = reporter(cache['mlp_out', 47][0]).sigmoid()
-    #res = reporter(cache[47].to(device))[0].sigmoid()
+    #res = reporter(cache['mlp_out', 47][0]).sigmoid()
+    res = reporter(cache[47].to(device))[0].sigmoid()
 pp(res.shape)
 pp(dataset[0][1])
 for inx, label in dataset[0][1]:
