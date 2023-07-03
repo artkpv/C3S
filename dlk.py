@@ -136,13 +136,13 @@ def visualize(layer, reporter):
         #res = reporter(cache['mlp_out', layer][0]).sigmoid()
         res = reporter(cache[layer].to(device)).sigmoid()
     pp(res)
-    pp(dataset[1])
+    pp(dataset[0])
     #for inx, label in dataset[1]:
     #    print(inx, label)
     #    pp(res[inx-1])
 
     t_strs = [s.replace('Ġ', ' ') for s in tokenizer.convert_ids_to_tokens(dataset[0][0])]
-    display(cv.tokens.colored_tokens(t_strs, res))
+    display(cv.tokens.colored_tokens(t_strs, res[0]))
 
 # %%
 for dataset_name in ('dbpedia_14', 'ag_news', 'imdb'):
@@ -165,8 +165,10 @@ sample_true = f'{sample}\nDid the reviewer find this movie good or bad?\n Bad'
 #%%
 # Visualize probe scores across layers per each head:
 
-layers = gpt2_xl.cfg.n_layers
-heads = gpt2_xl.cfg.n_heads
+#layers = gpt2_xl.cfg.n_layers
+layers = gpt2_xl.config.num_hidden_layers
+#heads = gpt2_xl.cfg.n_heads
+heads = gpt2_xl.config.num_attention_heads
 #seq_len = gpt2_xl.cfg.n_ctx
 head_layer_score = torch.zeros((layers, heads))
 
