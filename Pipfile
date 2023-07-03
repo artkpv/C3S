@@ -20,6 +20,7 @@ simple-parsing = "*"
 plotly = "==5.14.1"
 circuitsvis = "*"
 einops = "*"
+ipywidgets = "*"
 
 [dev-packages]
 ipykernel = "*"
