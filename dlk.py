@@ -1,5 +1,5 @@
 #%%
-
+from IPython.display import display
 from tqdm import tqdm
 import copy
 import numpy as np
