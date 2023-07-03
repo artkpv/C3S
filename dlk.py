@@ -137,12 +137,12 @@ def visualize(layer, reporter):
         res = reporter(cache[layer].to(device)).sigmoid()
     pp(res)
     pp(dataset[1])
-    #for inx, label in dataset[1]:
-    #    print(inx, label)
-    #    pp(res[inx-1])
+    for inx, label in dataset[1]:
+        print(inx, label)
+        pp(res[inx-1])
 
     t_strs = [s.replace('Ġ', ' ') for s in tokenizer.convert_ids_to_tokens(dataset[0][0])]
-    cv.tokens.colored_tokens(t_strs, res).write_image('tokens.svg')
+    display(cv.tokens.colored_tokens(t_strs, res))
 
 # %%
 for dataset_name in ('dbpedia_14', 'ag_news', 'imdb'):
