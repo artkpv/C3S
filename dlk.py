@@ -23,12 +23,6 @@ from plotly_utils import imshow
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 pp(device)
-# %%
-import plotly.express as px
-fig = px.bar(x=["a", "b", "c"], y=[1, 3, 2])
-
-fig.write_image('img.jpg')
-
 
 # %%
 # Experiments with T5 (UnifiedQA) model
@@ -148,7 +142,7 @@ def visualize(layer, reporter):
         pp(res[inx-1])
 
     t_strs = [s.replace('Ġ', ' ') for s in tokenizer.convert_ids_to_tokens(dataset[0][0])]
-    display(cv.tokens.colored_tokens(t_strs, res))
+    cv.tokens.colored_tokens(t_strs, res).write_image('tokens.svg')
 
 # %%
 for dataset in ('dbpedia_14', 'ag_news', 'imdb'):
