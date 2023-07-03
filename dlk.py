@@ -145,11 +145,11 @@ def visualize(layer, reporter):
     cv.tokens.colored_tokens(t_strs, res).write_image('tokens.svg')
 
 # %%
-for dataset in ('dbpedia_14', 'ag_news', 'imdb'):
+for dataset_name in ('dbpedia_14', 'ag_news', 'imdb'):
     layer=47
-    reporter = elk.training.Reporter.load(f'./data/gpt2-xl/{dataset}/reporters/layer_{layer}.pt', map_location=device)
+    reporter = elk.training.Reporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
     reporter.eval()
-    print(f'Probe gpt2-xl trained on {dataset} for {layer}:')
+    print(f'Probe gpt2-xl trained on {dataset_name} for {layer}:')
     visualize(layer, reporter)
 
 # %%
