@@ -18,12 +18,16 @@ import einops
 import elk 
 
 import circuitsvis as cv
-
+#from promptsource.templates import DatasetTemplates
 from plotly_utils import imshow
+from functools import cache
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 pp(device)
 
+seed = 42
+np_rand = np.random.default_rng(seed=42)
+#%%
 
 # %%
 # GPT2-XL from HF
@@ -34,45 +38,88 @@ gpt2_xl.eval()
 pp(gpt2_xl)
 
 # %%
-# Experimenting with TruthfulQA dataset.
-
+# TruthfulQA based many statements dataset.
+#@cache
+def get_tqa_dataset():
+    truthfulqa = load_dataset('truthful_qa', 'generation')
+    correct_statements = []
+    incorrect_statements = []
+    for e in truthfulqa['validation']:
+        q = e['question']
+        correct_statements += [(q, s) for s in e['correct_answers']]
+        incorrect_statements += [(q, s) for s in e['incorrect_answers']]
+    # tqa_dataset = [([statement, ..], [label, ..]), .. ]
+    # Each label is either 0 (false) or 1 (true) or -1 (unknown).
+    tqa_dataset = []
+    while correct_statements or incorrect_statements:
+        x = []
+        y = []
+        for _ in range(np_rand.integers(2, 5)):
+            label =  np_rand.integers(0,2)
+            statements = (incorrect_statements, correct_statements)[label]
+            if statements:
+                q, s = statements.pop()
+                x += [(q, s)]
+                y += [label]
+        if x and y:
+            tqa_dataset.append((x, y))
+    return tqa_dataset
 # %%
-truthfulqa = load_dataset('truthful_qa', 'generation')
-# Construct statements from each correct_answer and incorrect_answer:
-correct_statements = []
-incorrect_statements = []
-for e in truthfulqa['validation']:
-    for correct_answer in e['correct_answers']:
-        correct_statements.append(f"{e['question']} {correct_answer}.")
-    for incorrect_answer in e['incorrect_answers']:
-        incorrect_statements.append(f"{e['question']} {incorrect_answer}.")
-pp(len(incorrect_statements))
-pp(len(correct_statements))
+tqa_dataset = get_tqa_dataset()
 
+#%%
+tqa_formated_dataset_data = []
+tqa_formated_dataset_labels = []
+prompt = ' {} To this last question, the following answer, "{}", is {}.'
+for x, y in tqa_dataset:
+    x_t : torch.Tensor = None
+    labels = []
+    for (q, s), true_label in zip(x, y):
+        label =  (true_label + np_rand.integers(0,2))%2
+        ids = tokenizer.encode(
+            prompt.format(q, s, ('false', 'true')[label]), 
+            return_tensors='pt'
+        )
+        ids.squeeze_(0)
+        x_t = ids if x_t is None else torch.concat((x_t, ids), -1)
+        labels += [(x_t.size(0)-1, true_label)]
+    tqa_formated_dataset_data += [x_t]
+    tqa_formated_dataset_labels += [labels]
 # %%
-# Create dataset with x as concatenated correct and incorrect 2..4 statements,
-# and y as several 0 or 1 depending on whether a correct or incorrect statement is the correct answer.
-dataset = []
-while correct_statements or incorrect_statements:
-    x : torch.Tensor = None
-    y = []
-    for _ in range(np.random.randint(2, 5)):
-        label =  np.random.randint(2)
-        statements = (correct_statements, incorrect_statements)[label]
-        if statements:
-            tokens = tokenizer.encode( statements.pop(), return_tensors='pt')
-            x = tokens if x is None else torch.concat((x, tokens), -1)
-            inx = tokens.shape[1] + (y[-1][0] if y else 0)
-            y.append((inx, label))
-    if x is not None:
-        x.squeeze_(0)
-        dataset.append((x, y))
-pp(dataset[0])        
-
+pp(tqa_formated_dataset_data[0].shape)
+pp(tqa_formated_dataset_labels[0])
 # %%
+def visualize(ids, tokenizer, probs, labels):
+    tokens = tokenizer.convert_ids_to_tokens(ids)
+    pp('. '.join([f'{tokens[pos-1]} {probs[pos-1]} - {l}' for pos, l in labels]))
+    t_strs = [s.replace('Ġ', ' ') for s in tokens]
+    display(cv.tokens.colored_tokens(t_strs, probs))
+# %% 
+# Calculate accuracy
+layer=47
+dataset_name = 'dbpedia_14'
+reporter = elk.training.Reporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
+reporter.eval()
+correct_num = 0
+all_num = 0
+for data, labels in tqdm(list(zip(tqa_formated_dataset_data, tqa_formated_dataset_labels))):
+    with torch.inference_mode():
+        output = gpt2_xl.forward(
+            data.to(device),
+            output_hidden_states=True
+        )
+        res = reporter(output['hidden_states'][layer][0].to(device)).sigmoid()
+        #visualize(data, tokenizer, res, labels)
+        for (pos, l) in labels:
+            all_num += 1
+            if (res[pos-1] > 0.5) == (l == 1):
+                correct_num += 1
+    print(f'''Accuracy for TruthfulQA, using GPT2-xl, and probe from {dataset_name} on {layer}:
+{correct_num}/{all_num} = {correct_num/all_num:.2}.''')
+#%%
 with torch.inference_mode():
     output = gpt2_xl.forward(
-        dataset[0][0],
+        tqa_formated_dataset_data[0],
         output_hidden_states=True, 
         output_attentions=True,
     )
