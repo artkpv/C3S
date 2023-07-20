@@ -1,0 +1,27 @@
+name: dlkworks
+channels:
+  - r
+  - defaults
+  - pytorch
+  - conda-forge
+dependencies:
+  - python==3.10
+  - ipykernel
+  - numpy
+  - pytorch
+  - protobuf=3.20
+  - pynvml
+  - einops
+  - ipywidgets
+  - tqdm
+  - scikit-learn
+  - simple-parsing
+  - plotly=5.14.1
+  - datasets
+  - sentencepiece
+  - git
+  - pip:
+    - circuitsvis
+    - "--editable=git+https://github.com/neelnanda-io/TransformerLens#egg=transformer_lens"
+    - "--editable=../elk"
+prefix: /home/art/.conda/envs/dlkworks
