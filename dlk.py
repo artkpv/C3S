@@ -30,17 +30,13 @@ np_rand = np.random.default_rng(seed=42)
 #%%
 
 # %%
-# GPT2-XL from HF
-# %%
-gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
-tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
-gpt2_xl.eval()
-pp(gpt2_xl)
-
-# %%
-# TruthfulQA based many statements dataset.
+# Many statements dataset based on TruthfulQA
 #@cache
 def get_tqa_dataset():
+    '''
+    Returns array of (x, y) pairs, where x is an array of (q, s), 
+    question and statement, and y is an array of true of false labels.
+    '''
     truthfulqa = load_dataset('truthful_qa', 'generation')
     correct_statements = []
     incorrect_statements = []
@@ -64,36 +60,43 @@ def get_tqa_dataset():
         if x and y:
             tqa_dataset.append((x, y))
     return tqa_dataset
-# %%
-tqa_dataset = get_tqa_dataset()
 
 #%%
-tqa_formated_dataset_data = []
-tqa_formated_dataset_labels = []
-prompt = ' {} To this last question, the following answer, "{}", is {}.'
-for x, y in tqa_dataset:
-    x_t : torch.Tensor = None
-    labels = []
-    for (q, s), true_label in zip(x, y):
-        label =  (true_label + np_rand.integers(0,2))%2
-        ids = tokenizer.encode(
-            prompt.format(q, s, ('false', 'true')[label]), 
-            return_tensors='pt'
-        )
-        ids.squeeze_(0)
-        x_t = ids if x_t is None else torch.concat((x_t, ids), -1)
-        labels += [(x_t.size(0)-1, true_label)]
-    tqa_formated_dataset_data += [x_t]
-    tqa_formated_dataset_labels += [labels]
+def _create_tokenized_tqa_dataset(tokenizer, tqa_dataset):
+    tqa_formated_dataset_data = []
+    tqa_formated_dataset_labels = []
+    prompt = ' {} To this last question, the following answer, "{}", is {}.'
+    for x, y in tqa_dataset:
+        x_t : torch.Tensor = None
+        labels = []
+        for (q, s), true_label in zip(x, y):
+            label =  (true_label + np_rand.integers(0,2))%2
+            ids = tokenizer.encode(
+                prompt.format(q, s, ('false', 'true')[label]), 
+                return_tensors='pt'
+            )
+            ids.squeeze_(0)
+            x_t = ids if x_t is None else torch.concat((x_t, ids), -1)
+            labels += [(x_t.size(0)-1, true_label)]
+        tqa_formated_dataset_data += [x_t]
+        tqa_formated_dataset_labels += [labels]
+    #pp(tqa_formated_dataset_data[0].shape)
+    #pp(tqa_formated_dataset_labels[0])
+    return (tqa_formated_dataset_data, tqa_formated_dataset_labels)
+
 # %%
-pp(tqa_formated_dataset_data[0].shape)
-pp(tqa_formated_dataset_labels[0])
+# GPT2-XL from HF
+gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
+tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
+gpt2_xl.eval()
+pp(gpt2_xl)
+
 # %%
-def visualize(ids, tokenizer, probs, labels):
-    tokens = tokenizer.convert_ids_to_tokens(ids)
-    pp('. '.join([f'{tokens[pos-1]} {probs[pos-1]} - {l}' for pos, l in labels]))
-    t_strs = [s.replace('Ġ', ' ') for s in tokens]
-    display(cv.tokens.colored_tokens(t_strs, probs))
+# Create tokenized TruthfulQA dataset
+tqa_dataset = get_tqa_dataset()
+tqa_formated_dataset_data, tqa_formated_dataset_labels = _create_tokenized_tqa_dataset(
+    tokenizer, tqa_dataset)
+
 # %% 
 # Calculate accuracy
 layer=47
@@ -102,7 +105,9 @@ reporter = elk.training.Reporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/
 reporter.eval()
 correct_num = 0
 all_num = 0
-for data, labels in tqdm(list(zip(tqa_formated_dataset_data, tqa_formated_dataset_labels))):
+# TODO: vectorized version. Now it runs like forever.
+SOME_SUBSET=10
+for data, labels in tqdm(list(zip(tqa_formated_dataset_data, tqa_formated_dataset_labels))[:SOME_SUBSET]):
     with torch.inference_mode():
         output = gpt2_xl.forward(
             data.to(device),
@@ -116,7 +121,9 @@ for data, labels in tqdm(list(zip(tqa_formated_dataset_data, tqa_formated_datase
                 correct_num += 1
     print(f'''Accuracy for TruthfulQA, using GPT2-xl, and probe from {dataset_name} on {layer}:
 {correct_num}/{all_num} = {correct_num/all_num:.2}.''')
+
 #%%
+# Investigate single sample.
 with torch.inference_mode():
     output = gpt2_xl.forward(
         tqa_formated_dataset_data[0],
@@ -127,9 +134,6 @@ hidden_states = output['hidden_states']
 layers_num = len(output['hidden_states'])
 heads_num = output['attentions'][1].size(1)
 pp(f'{layers_num=} {heads_num=}')
-
-# %% 
-# Output shapes
 pp(type(output))
 pp(output.keys())
 pp(output['last_hidden_state'].shape)
@@ -145,12 +149,11 @@ for i,e in enumerate(output['attentions']):
 pp(output['last_hidden_state'].shape)
 # See https://huggingface.co/docs/transformers/main_classes/output
 
-# %%
 # Visualizing scores per tokens
 def visualize(layer, reporter):
     with torch.inference_mode():
         res = reporter(hidden_states[layer].to(device)).sigmoid()
-    t_strs = [s.replace('Ġ', ' ') for s in tokenizer.convert_ids_to_tokens(dataset[0][0])]
+    t_strs = [s.replace('Ġ', ' ') for s in tokenizer.convert_ids_to_tokens(tqa_formated_dataset_data[0])]
     display(cv.tokens.colored_tokens(t_strs, res[0]))
 
 for dataset_name in ('dbpedia_14', 'ag_news', 'imdb'):
@@ -168,33 +171,28 @@ imdb_samples = [
 f'''
 {imdb_ds['train']['text'][:1]}
 Did the reviewer find this movie good or bad? 
-bad
-''',
-f'''
-{imdb_ds['train']['text'][:1]}
-Did the reviewer find this movie good or bad? 
-good
-''',
+{a}
+''' for a in ('good', 'bad')
 ]
 # %%
-with torch.inference_mode():
-    output = gpt2_xl.forward(
-        imdb_samples,
-        output_hidden_states=True, 
-        output_attentions=True,
-    )
-hidden_states = output['hidden_states']
-layers_num = len(output['hidden_states'])
-pp(f'{layers_num=} {heads_num=}')
+#with torch.inference_mode():
+#    output = gpt2_xl.forward(
+#        imdb_samples,
+#        output_hidden_states=True, 
+#        output_attentions=True,
+#    )
+#hidden_states = output['hidden_states']
+#layers_num = len(output['hidden_states'])
+#pp(f'{layers_num=} {heads_num=}')
 
 # %%
 # Visualize probe scores across layers per each head:
-attentions = output['attentions']
-heads_num = output['attentions'][1].size(1)
-att_layers_num = len(attentions)
-
-head_layer_score = torch.zeros((att_layers_num, heads_num))
 # TODO
+# attentions = output['attentions']
+# heads_num = output['attentions'][1].size(1)
+# att_layers_num = len(attentions)
+# 
+# head_layer_score = torch.zeros((att_layers_num, heads_num))
 # for layer in range(att_layers_num):
 #     dataset_name = 'imdb'
 #     reporter = elk.training.Reporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
