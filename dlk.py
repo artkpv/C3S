@@ -1,3 +1,11 @@
+'''
+- Creates a multi-sentence dataset based on TruthfulQA dataset (in each 
+  sample there are many question and answer pairs).
+- Calculates accuracy on this dataset for GPT2-xl model and a probe.
+- Investigates an example from this dataset.
+- Calculates a probe score on IMDB dataset using TransformerLens. And visualizes score on each layer.
+
+'''
 #%%
 from IPython.display import display
 from tqdm import tqdm
@@ -130,7 +138,7 @@ with torch.inference_mode():
         output_hidden_states=True, 
         output_attentions=True,
     )
-hidden_states = output['hidden_states']
+cache_true = output['hidden_states']
 layers_num = len(output['hidden_states'])
 heads_num = output['attentions'][1].size(1)
 pp(f'{layers_num=} {heads_num=}')
@@ -141,7 +149,7 @@ pp(len(output['hidden_states']))
 pp(len(output['attentions']))
 pp(len(output['past_key_values']))
 pp('hidden states:')
-for i,e in enumerate(hidden_states):
+for i,e in enumerate(cache_true):
     pp(f'{i} {e.shape}')
 pp('attentions:')
 for i,e in enumerate(output['attentions']):
@@ -152,7 +160,7 @@ pp(output['last_hidden_state'].shape)
 # Visualizing scores per tokens
 def visualize(layer, reporter):
     with torch.inference_mode():
-        res = reporter(hidden_states[layer].to(device)).sigmoid()
+        res = reporter(cache_true[layer].to(device)).sigmoid()
     t_strs = [s.replace('Ġ', ' ') for s in tokenizer.convert_ids_to_tokens(tqa_formated_dataset_data[0])]
     display(cv.tokens.colored_tokens(t_strs, res[0]))
 
@@ -165,7 +173,6 @@ for dataset_name in ('dbpedia_14', 'ag_news', 'imdb'):
 
 # %% 
 # IMDB dataset
-# %%
 imdb_ds = load_dataset('imdb')
 imdb_samples = [
 f'''
@@ -228,16 +235,16 @@ sample_false = f'{sample}\nDid the reviewer find this movie good or bad?\nGood'
 sample_true = f'{sample}\nDid the reviewer find this movie good or bad?\n Bad'
 with torch.inference_mode():
     _, cache_false = ht_model.run_with_cache(sample_false, remove_batch_dim=True)
-    _, hidden_states = ht_model.run_with_cache(sample_true, remove_batch_dim=True)
+    _, cache_true = ht_model.run_with_cache(sample_true, remove_batch_dim=True)
 
 for layer in range(layers):
     probe = elk.training.Reporter.load(
-        f'./data/gpt2-xl/imdb/festive-elion/reporters/layer_{layer}.pt', 
+        f'./data/gpt2-xl/imdb/reporters/layer_{layer}.pt', 
         map_location=device
     )
     pp(probe)
     act0 = cache_false['mlp_out', layer][-1].to(device)
-    act1 = hidden_states['mlp_out', layer][-1].to(device)
+    act1 = cache_true['mlp_out', layer][-1].to(device)
     p0 = probe(act0).item() # (act0 @ probe['probe.0.weight'].T + probe['probe.0.bias']).sigmoid().item()
     p1 = probe(act1).item() # (act1 @ probe['probe.0.weight'].T + probe['probe.0.bias']).sigmoid().item()
     confidence = 0.5*(p0 + (1-p1))
@@ -245,7 +252,6 @@ for layer in range(layers):
 
 #%%
 # Visualize probe scores across layers per each head:
-
 head_layer_score = torch.zeros((layers, heads))
 
 def induction_score_hook(
@@ -261,7 +267,6 @@ def induction_score_hook(
     assert result.size(0) == 1, f"Expecting one sample but: {result.shape}"
     score = probe(result[0, -1, :, :]).sigmoid()
     head_layer_score[layer, :] = score
-
 
 ht_model.run_with_hooks(
     tokenizer.encode(sample_false, return_tensors='pt'),
