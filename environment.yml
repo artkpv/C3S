@@ -20,6 +20,7 @@ dependencies:
   - datasets
   - sentencepiece
   - git
+  - pip
   - pip:
     - circuitsvis
     - transformer_lens
