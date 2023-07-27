@@ -22,6 +22,5 @@ dependencies:
   - git
   - pip:
     - circuitsvis
-    - "--editable=git+https://github.com/neelnanda-io/TransformerLens#egg=transformer_lens"
-    - "--editable=../elk"
-prefix: /home/art/.conda/envs/dlkworks
+    - transformer_lens
+    - "--editable=lib/elk"

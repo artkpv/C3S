@@ -24,6 +24,7 @@ from transformer_lens.hook_points import HookPoint
 from transformer_lens import utils, HookedTransformer, HookedTransformerConfig, FactoredMatrix, ActivationCache
 import einops
 import elk 
+from pathlib import Path
 
 import circuitsvis as cv
 #from promptsource.templates import DatasetTemplates
@@ -106,10 +107,49 @@ tqa_formated_dataset_data, tqa_formated_dataset_labels = _create_tokenized_tqa_d
     tokenizer, tqa_dataset)
 
 # %% 
+class ReporterConfig(ABC, Serializable, decode_into_subclasses=True):
+    """
+    Args:
+        seed: The random seed to use. Defaults to 42.
+    """
+
+    seed: int = 42
+
+    @classmethod
+    @abstractmethod
+    def reporter_class(cls) -> type["Reporter"]:
+        """Get the reporter class associated with this config."""
+# %%
+def load(cls, path: Path | str, *, map_location: str = "cpu"):
+    """Load a reporter from a file."""
+    obj = torch.load(path, map_location=map_location)
+    # Loading a state dict rather than the full object
+    if isinstance(obj, dict):
+        cls_path = Path(path).parent / "cfg.yaml"
+        cfg = load( ReporterConfig, cls_path)
+
+        # Non-tensor values get passed to the constructor as kwargs
+        kwargs = {}
+        special_keys = {k for k, v in obj.items() if not isinstance(v, Tensor)}
+        for k in special_keys:
+            kwargs[k] = obj.pop(k)
+
+        reporter_cls = cfg.reporter_class()
+        reporter = reporter_cls(cfg, device=map_location, **kwargs)
+        reporter.load_state_dict(obj)
+        return reporter
+    else:
+        raise TypeError(
+            f"Expected a `dict` or `Reporter` object, but got {type(obj)}."
+        )
+# %% 
 # Calculate accuracy
 layer=47
 dataset_name = 'dbpedia_14'
-reporter = elk.training.Reporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
+#reporter = elk.training.Reporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
+#reporter = torch.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
+reporter = elk.training.CcsReporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
+pp(reporter)
 reporter.eval()
 correct_num = 0
 all_num = 0
@@ -121,7 +161,10 @@ for data, labels in tqdm(list(zip(tqa_formated_dataset_data, tqa_formated_datase
             data.to(device),
             output_hidden_states=True
         )
-        res = reporter(output['hidden_states'][layer][0].to(device)).sigmoid()
+        h_states = output['hidden_states'][layer][0].to(device)
+        logits = reporter(h_states)
+        pp(logits.shape)
+        res = logits.sigmoid()
         #visualize(data, tokenizer, res, labels)
         for (pos, l) in labels:
             all_num += 1
