@@ -5,9 +5,11 @@ trap "echo 'error: Script failed: see failed command above'" ERR
 function vast() {
     if [[ "${VAST_CONTAINERLABEL:-}" != "" ]] ; then
         # At Vast.
-        conda install --freeze-installed $( cat requirements.txt | grep -v '^--editable' ) -c conda-forge -c pytorch -c r -c defaults
+        conda install --freeze-installed \
+            $( cat requirements.txt | grep -v '^--editable' ) \
+            -c conda-forge -c pytorch -c r -c defaults
         conda activate 
-        pip install -e lib/elk
+        pip install $( cat requirements.txt | sed -En '/# pip/s_(.*) # pip_\1_p'  ) 
     else
         VAST_ID=`vast.py show instances | head -2 | tail -1 | cut -d ' ' -f1 `
         if [[ "$VAST_ID" == "" ]] ; then 

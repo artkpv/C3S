@@ -12,6 +12,6 @@ simple-parsing
 plotly
 datasets
 sentencepiece
-circuitsvis
-transformer_lens
---editable=lib/elk
+circuitsvis  # pip
+transformer_lens  # pip
+--editable=lib/elk  # pip
