@@ -1,0 +1,28 @@
+name: dlkworks
+channels:
+  - conda-forge
+  - pytorch
+  - r
+  - defaults
+dependencies:
+  - ipykernel
+  - numpy
+  - pytorch
+  - pytorch-cuda
+  - protobuf
+  - pynvml
+  - einops
+  - ipywidgets
+  - tqdm
+  - scikit-learn
+  - simple-parsing
+  - plotly
+  - datasets
+  - sentencepiece
+  - python
+  - git
+  - pip=23.2.1
+  - pip:
+    - circuitsvis
+    - transformer_lens
+    - "--editable=lib/elk"
