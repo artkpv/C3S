@@ -1,6 +1,5 @@
 name: dlkworks
 channels:
-  - conda-metachannel
   - conda-forge
   - pytorch
   - r
