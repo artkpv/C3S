@@ -22,6 +22,6 @@ dependencies:
   - git
   - pip=23.2.1
   - pip:
-    - circuitsvis=1.40.*
+    - circuitsvis
     - transformer_lens
     - "--editable=lib/elk"
