@@ -5,23 +5,23 @@ channels:
   - pytorch
   - conda-forge
 dependencies:
-  - python==3.10
-  - ipykernel
-  - numpy
-  - pytorch
+  - ipykernel=6.19.*
+  - numpy=1.25.*
+  - pytorch=2.0.*
   - protobuf=3.20
   - pynvml
-  - einops
+  - einops=0.6.*
   - ipywidgets
   - tqdm
-  - scikit-learn
-  - simple-parsing
-  - plotly=5.14.1
-  - datasets
+  - scikit-learn=1.2.*
+  - simple-parsing=0.1.*
+  - plotly=5.14.*
+  - datasets=2.13.*
   - sentencepiece
+  - python==3.10
   - git
-  - pip
+  - pip=23.2.*
   - pip:
-    - circuitsvis
+    - circuitsvis=1.40.*
     - transformer_lens
     - "--editable=lib/elk"
