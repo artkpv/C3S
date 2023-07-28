@@ -6,7 +6,7 @@ function vast() {
     if [[ "${VAST_CONTAINERLABEL:-}" != "" ]] ; then
         # At Vast.
         conda install --freeze-installed \
-            $( cat requirements.txt | grep -v '^ # pip' ) \
+            $( cat requirements.txt | grep -v ' # pip' ) \
             -c conda-forge -c pytorch -c r -c defaults
         conda activate 
         pip install $( cat requirements.txt | sed -En '/# pip/s_(.*) # pip_\1_p'  ) 
