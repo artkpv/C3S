@@ -5,7 +5,9 @@ trap "echo 'error: Script failed: see failed command above'" ERR
 function vast() {
     if [[ "${VAST_CONTAINERLABEL:-}" != "" ]] ; then
         # At Vast.
-        conda env create -f environment.yml
+        conda install --freeze-installed $( cat requirements.txt | grep -v '^--editable' )
+        conda activate 
+        pip install -e lib/elk
     else
         VAST_ID=`vast.py show instances | head -2 | tail -1 | cut -d ' ' -f1 `
         if [[ "$VAST_ID" == "" ]] ; then 
