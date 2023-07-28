@@ -5,7 +5,7 @@ trap "echo 'error: Script failed: see failed command above'" ERR
 function vast() {
     if [[ "${VAST_CONTAINERLABEL:-}" != "" ]] ; then
         # At Vast.
-        conda install --freeze-installed $( cat requirements.txt | grep -v '^--editable' )
+        conda install --freeze-installed $( cat requirements.txt | grep -v '^--editable' ) -c conda-forge -c pytorch -c r -c defaults
         conda activate 
         pip install -e lib/elk
     else
