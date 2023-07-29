@@ -1,0 +1,8 @@
+_type_: elk.training.eigen_reporter.EigenFitterConfig
+erase_prompts: false
+neg_cov_weight: 0.5
+num_heads: 1
+save_reporter_stats: false
+seed: 42
+use_centroids: true
+var_weight: 0.0

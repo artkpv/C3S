@@ -17,7 +17,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from jaxtyping import Int, Float
 from datasets import load_dataset
-from transformers import T5Tokenizer, T5ForConditionalGeneration, GPT2Model, GPT2Tokenizer
+from transformers import T5Tokenizer, T5ForConditionalGeneration, GPT2Model, GPT2Tokenizer, DebertaV2Model, DebertaV2Tokenizer
 from sklearn.linear_model import LogisticRegression
 from pprint import pp
 from transformer_lens.hook_points import HookPoint
@@ -100,6 +100,7 @@ tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
 gpt2_xl.eval()
 pp(gpt2_xl)
 
+
 # %%
 # Create tokenized TruthfulQA dataset
 tqa_dataset = get_tqa_dataset()
@@ -145,33 +146,34 @@ def load(cls, path: Path | str, *, map_location: str = "cpu"):
 # %% 
 # Calculate accuracy
 layer=47
-dataset_name = 'dbpedia_14'
+#dataset_name = 'dbpedia_14'
 #reporter = elk.training.Reporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
 #reporter = torch.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
-reporter = elk.training.CcsReporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
-pp(reporter)
-reporter.eval()
-correct_num = 0
-all_num = 0
-# TODO: vectorized version. Now it runs like forever.
-SOME_SUBSET=10
-for data, labels in tqdm(list(zip(tqa_formated_dataset_data, tqa_formated_dataset_labels))[:SOME_SUBSET]):
-    with torch.inference_mode():
-        output = gpt2_xl.forward(
-            data.to(device),
-            output_hidden_states=True
-        )
-        h_states = output['hidden_states'][layer][0].to(device)
-        logits = reporter(h_states)
-        pp(logits.shape)
-        res = logits.sigmoid()
-        #visualize(data, tokenizer, res, labels)
-        for (pos, l) in labels:
-            all_num += 1
-            if (res[pos-1] > 0.5) == (l == 1):
-                correct_num += 1
-    print(f'''Accuracy for TruthfulQA, using GPT2-xl, and probe from {dataset_name} on {layer}:
-{correct_num}/{all_num} = {correct_num/all_num:.2}.''')
+#reporter = torch.load(f'./data/deberta-v2-xxlarge-mnli/imdb/eager-colden/reporters/layer_{layer}.pt', map_location=device)
+#reporter = elk.training.CcsReporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
+# pp(reporter.__dict__.keys())
+# #reporter.eval()
+# correct_num = 0
+# all_num = 0
+# # TODO: vectorized version. Now it runs like forever.
+# SOME_SUBSET=10
+# for data, labels in tqdm(list(zip(tqa_formated_dataset_data, tqa_formated_dataset_labels))[:SOME_SUBSET]):
+#     with torch.inference_mode():
+#         output = deberta.forward(
+#             data.to(device),
+#             output_hidden_states=True
+#         )
+#         h_states = output['hidden_states'][layer][0].to(device)
+#         logits = reporter(h_states)
+#         pp(logits.shape)
+#         res = logits.sigmoid()
+#         #visualize(data, tokenizer, res, labels)
+#         for (pos, l) in labels:
+#             all_num += 1
+#             if (res[pos-1] > 0.5) == (l == 1):
+#                 correct_num += 1
+#     print(f'''Accuracy for TruthfulQA, using GPT2-xl, and probe from {dataset_name} on {layer}:
+# {correct_num}/{all_num} = {correct_num/all_num:.2}.''')
 
 #%%
 # Investigate single sample.
@@ -213,6 +215,47 @@ for dataset_name in ('dbpedia_14', 'ag_news', 'imdb'):
     reporter.eval()
     print(f'Probe gpt2-xl trained on {dataset_name} for {layer}:')
     visualize(layer, reporter)
+
+# %%
+# Deberta
+deberta : DebertaV2Model = DebertaV2Model.from_pretrained('microsoft/deberta-v2-xxlarge-mnli')
+deberta_tokenizer = DebertaV2Tokenizer.from_pretrained('microsoft/deberta-v2-xxlarge-mnli')
+deberta.eval()
+pp(deberta)
+
+# %%
+# Create tokenized TruthfulQA dataset
+tqa_dataset = get_tqa_dataset()
+tqa_formated_dataset_data, tqa_formated_dataset_labels = _create_tokenized_tqa_dataset(
+    deberta_tokenizer, tqa_dataset)
+
+# %% 
+# Calculate accuracy
+layer=47
+dataset_name = 'dbpedia_14'
+reporter = torch.load(f'./data/deberta-v2-xxlarge-mnli/imdb/eager-colden/reporters/layer_{layer}.pt', map_location=device)
+#reporter.eval()
+correct_num = 0
+all_num = 0
+# TODO: vectorized version. Now it runs like forever.
+SOME_SUBSET=10
+for data, labels in tqdm(list(zip(tqa_formated_dataset_data, tqa_formated_dataset_labels))[:SOME_SUBSET]):
+    with torch.inference_mode():
+        output = deberta.forward(
+            data.to(device),
+            output_hidden_states=True
+        )
+        h_states = output['hidden_states'][layer][0].to(device)
+        logits = reporter(h_states)
+        pp(logits.shape)
+        res = logits.sigmoid()
+        #visualize(data, tokenizer, res, labels)
+        for (pos, l) in labels:
+            all_num += 1
+            if (res[pos-1] > 0.5) == (l == 1):
+                correct_num += 1
+    print(f'''Accuracy for TruthfulQA, using GPT2-xl, and probe from {dataset_name} on {layer}:
+{correct_num}/{all_num} = {correct_num/all_num:.2}.''')
 
 # %% 
 # IMDB dataset

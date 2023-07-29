@@ -1,0 +1,35 @@
+_type_: elk.training.train.Elicit
+concatenated_layer_offset: 0
+data:
+  _type_: elk.extraction.extraction.Extract
+  binarize: false
+  data_dirs: []
+  datasets:
+  - imdb
+  int8: false
+  layers: []
+  max_examples:
+  - 1000
+  - 1000
+  model: microsoft/deberta-v2-xxlarge-mnli
+  num_shots: 0
+  num_variants: -1
+  seed: 42
+  template_path: null
+  token_loc: last
+  use_encoder_states: false
+debug: false
+min_gpu_mem: null
+net:
+  _type_: elk.training.eigen_reporter.EigenFitterConfig
+  erase_prompts: false
+  neg_cov_weight: 0.5
+  num_heads: 1
+  save_reporter_stats: false
+  seed: 42
+  use_centroids: true
+  var_weight: 0.0
+num_gpus: -1
+out_dir: /root/elk-reporters/microsoft/deberta-v2-xxlarge-mnli/imdb/eager-colden
+prompt_indices: []
+supervised: single
