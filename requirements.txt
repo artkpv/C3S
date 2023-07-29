@@ -14,4 +14,4 @@ datasets
 sentencepiece
 circuitsvis  # pip
 transformer_lens  # pip
---editable=lib/elk  # pip
+-e lib/elk  # pip
