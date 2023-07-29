@@ -1,3 +1,4 @@
 [submodule "lib/elk"]
 	path = lib/elk
 	url = https://github.com/EleutherAI/elk.git
+	branch = v0.1.1
