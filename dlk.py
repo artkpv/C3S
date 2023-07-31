@@ -16,7 +16,7 @@ from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
 from jaxtyping import Int, Float
-from transformers import T5Tokenizer, T5ForConditionalGeneration, GPT2Model, GPT2Tokenizer, DebertaV2Model, DebertaV2Tokenizer, LlamaPreTrainedModel
+from transformers import T5Tokenizer, T5ForConditionalGeneration, GPT2Model, GPT2Tokenizer, DebertaV2Model, DebertaV2Tokenizer, LlamaForCausalLM
 from sklearn.linear_model import LogisticRegression
 from pprint import pp
 from transformer_lens.hook_points import HookPoint
@@ -250,8 +250,8 @@ Did the reviewer find this movie good or bad?
 
 # %%
 # LLaMA
-llama13b = LlamaPreTrainedModel.from_pretrained("huggyllama/llama-13b")
-ht_model: HookedTransformer = HookedTransformer.from_pretrained("llama-13b", hf_model=llama13b)
+llama13b = LlamaForCausalLM.from_pretrained("huggyllama/llama-7b")
+ht_model: HookedTransformer = HookedTransformer.from_pretrained("llama-7b", hf_model=llama13b)
 ht_model.eval()
 tokenizer = ht_model.tokenizer
 pp(ht_model)

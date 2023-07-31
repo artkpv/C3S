@@ -9,7 +9,7 @@ function vast() {
         conda install --freeze-installed \
             $( cat requirements.txt | grep -v ' # pip' ) \
             -c conda-forge -c pytorch -c r -c defaults
-        pip install $( cat requirements.txt | sed -En '/# pip/s_(.*) # pip_\1_p'  ) 
+        pip install $( cat requirements.txt | sed -En '/# pip/s_^(.*) # pip_\1_p'  ) 
     else
         VAST_ID=`vast.py show instances | head -2 | tail -1 | cut -d ' ' -f1 `
         if [[ "$VAST_ID" == "" ]] ; then 
