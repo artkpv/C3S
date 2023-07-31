@@ -41,6 +41,8 @@ np_rand = np.random.default_rng(seed=42)
 # Create dataset
 tqa_dataset = get_tqa_dataset(np_rand)
 
+# 
+# TODO: Init LLaMA. And process the dataset.
 # %%
 # GPT2-XL from HF
 gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
