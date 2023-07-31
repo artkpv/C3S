@@ -36,7 +36,7 @@ def get_tqa_dataset(np_rand):
     return tqa_dataset
 
 #%%
-def _create_tokenized_tqa_dataset(tokenizer, tqa_dataset, np_rand):
+def create_tokenized_tqa_dataset(tokenizer, tqa_dataset, np_rand):
     tqa_formated_dataset_data = []
     tqa_formated_dataset_labels = []
     prompt = ' {} To this last question, the following answer, "{}", is {}.'

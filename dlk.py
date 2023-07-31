@@ -29,7 +29,7 @@ import circuitsvis as cv
 #from promptsource.templates import DatasetTemplates
 from plotly_utils import imshow
 from functools import cache
-from utils.datasets import get_tqa_dataset, load_dataset
+from utils.datasets import get_tqa_dataset, create_tokenized_tqa_dataset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 pp(device)
@@ -38,6 +38,8 @@ seed = 42
 np_rand = np.random.default_rng(seed=42)
 
 # %%
+# Create dataset
+tqa_dataset = get_tqa_dataset(np_rand)
 
 # %%
 # GPT2-XL from HF
@@ -46,26 +48,10 @@ tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
 gpt2_xl.eval()
 pp(gpt2_xl)
 
-
 # %%
-# Create tokenized TruthfulQA dataset
-tqa_dataset = get_tqa_dataset()
-tqa_formated_dataset_data, tqa_formated_dataset_labels = _create_tokenized_tqa_dataset(
+tqa_formated_dataset_data, tqa_formated_dataset_labels = create_tokenized_tqa_dataset(
     tokenizer, tqa_dataset, np_rand)
 
-# %% 
-class ReporterConfig(ABC, Serializable, decode_into_subclasses=True):
-    """
-    Args:
-        seed: The random seed to use. Defaults to 42.
-    """
-
-    seed: int = 42
-
-    @classmethod
-    @abstractmethod
-    def reporter_class(cls) -> type["Reporter"]:
-        """Get the reporter class associated with this config."""
 # %%
 def load(cls, path: Path | str, *, map_location: str = "cpu"):
     """Load a reporter from a file."""

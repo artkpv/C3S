@@ -21,6 +21,8 @@ dependencies:
   - python
   - git
   - pip
+  - httpcore
+  - h11
   - pip:
     - circuitsvis
     - git+https://github.com/neelnanda-io/TransformerLens
