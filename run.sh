@@ -6,7 +6,7 @@ function vast() {
     if [[ "${VAST_CONTAINERLABEL:-}" != "" ]] ; then
         # At Vast.
         conda update conda
-        conda env update -f environment.yml
+        conda env update -n base -f environment.yml
     fi
 }
 

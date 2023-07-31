@@ -23,5 +23,5 @@ dependencies:
   - pip
   - pip:
     - circuitsvis
-    - transformer_lens
+    - git+https://github.com/neelnanda-io/TransformerLens
     - "-e lib/elk"
