@@ -12,6 +12,8 @@ simple-parsing
 plotly
 datasets
 sentencepiece
+jaxtyping
+transformers
 circuitsvis  # pip
 transformer_lens  # pip
 -e lib/elk  # pip
