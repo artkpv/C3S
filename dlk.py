@@ -16,7 +16,8 @@ from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
 from jaxtyping import Int, Float
-from transformers import T5Tokenizer, T5ForConditionalGeneration, GPT2Model, GPT2Tokenizer, DebertaV2Model, DebertaV2Tokenizer, LlamaForCausalLM
+from transformers import T5Tokenizer, T5ForConditionalGeneration, GPT2Model, GPT2Tokenizer, \
+    DebertaV2Model, DebertaV2Tokenizer, LlamaForCausalLM, LlamaTokenizer
 from sklearn.linear_model import LogisticRegression
 from pprint import pp
 from transformer_lens.hook_points import HookPoint
@@ -41,8 +42,31 @@ np_rand = np.random.default_rng(seed=42)
 # Create dataset
 tqa_dataset = get_tqa_dataset(np_rand)
 
-# 
-# TODO: Init LLaMA. And process the dataset.
+# %%
+# Init LLaMA.
+hf_llama : LlamaForCausalLM = LlamaForCausalLM.from_pretrained('huggyllama/llama-7b')
+ht_model: HookedTransformer = HookedTransformer.from_pretrained("llama-7b", hf_model=hf_llama)
+ht_model.eval()
+pp(ht_model)
+llama_tokenizer = LlamaTokenizer.from_pretrained('huggyllama/llama-7b', padding_side='left')
+llama_tokenizer = ht_model.tokenizer
+
+# %%
+tqa_formated_dataset_data, tqa_formated_dataset_labels = create_tokenized_tqa_dataset(
+    llama_tokenizer, tqa_dataset, np_rand)
+
+# %%
+
+with torch.inference_mode():
+    ids = llama_tokenizer.encode(
+        # ["What's the probability of human race extinction from artificial general intelligence?"], 
+        ["If we divide 25 by 5 the answer would be:"], 
+        return_tensors='pt'
+    ).reshape(1, -1)
+    generate_ids = llama.generate(ids, max_length=100)
+    output = llama_tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
+    pp(output)
+
 # %%
 # GPT2-XL from HF
 gpt2_xl : GPT2Model = GPT2Model.from_pretrained('gpt2-xl')
@@ -237,12 +261,6 @@ Did the reviewer find this movie good or bad?
 # )
 
 # %%
-# LLaMA
-llama13b = LlamaForCausalLM.from_pretrained("huggyllama/llama-7b")
-ht_model: HookedTransformer = HookedTransformer.from_pretrained("llama-7b", hf_model=llama13b)
-ht_model.eval()
-tokenizer = ht_model.tokenizer
-pp(ht_model)
 
 # %%
 # TransformerLens 
