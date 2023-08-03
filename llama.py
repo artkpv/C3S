@@ -37,7 +37,7 @@ model = LlamaForCausalLM.from_pretrained("/workspace/llama/llama-2-7b-converted"
 # %%
 llama = HookedTransformer.from_pretrained(
     "/workspace/llama/llama-2-7b-converted",
-    hf_model=hf_model, 
+    hf_model=model, 
     device=device, 
     fold_ln=False, 
     center_writing_weights=False, 
