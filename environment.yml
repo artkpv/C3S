@@ -17,15 +17,15 @@ dependencies:
   - plotly
   - protobuf
   - pynvml
-  - python
-  - pytorch
-  - pytorch-cuda
+  - pytorch=2.0.*
+  - pytorch-cuda=11.8
   - scikit-learn
   - sentencepiece
   - simple-parsing
   - torchvision 
   - torchaudio
   - tqdm
+  - python=3.10
   - git
   - pip
   - pip:
