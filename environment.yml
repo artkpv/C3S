@@ -1,28 +1,33 @@
 channels:
+  - nvidia
+  - pytorch
   - conda-forge
   - r
   - defaults
 dependencies:
+  - einops
+  - h11
+  - httpcore
+  - huggingface::datasets
+  - huggingface::transformers
   - ipykernel
+  - ipywidgets
+  - jaxtyping
   - numpy
-  - pytorch::pytorch
+  - plotly
   - protobuf
   - pynvml
-  - einops
-  - ipywidgets
-  - tqdm
-  - scikit-learn
-  - simple-parsing
-  - plotly
-  - huggingface::datasets
-  - sentencepiece
-  - huggingface::transformers
-  - jaxtyping
   - python
+  - pytorch
+  - pytorch-cuda
+  - scikit-learn
+  - sentencepiece
+  - simple-parsing
+  - torchvision 
+  - torchaudio
+  - tqdm
   - git
   - pip
-  - httpcore
-  - h11
   - pip:
     - circuitsvis
     - git+https://github.com/neelnanda-io/TransformerLens
