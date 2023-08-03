@@ -32,23 +32,33 @@ np_rand = np.random.default_rng(seed=42)
 # %%
 # Load model
 tokenizer = LlamaTokenizer.from_pretrained("/workspace/llama/llama-2-7b-converted")
-model = LlamaForCausalLM.from_pretrained("/workspace/llama/llama-2-7b-converted")
+model = LlamaForCausalLM.from_pretrained("/workspace/llama/llama-2-7b-converted", device_map='cuda')
 
 # %%
 llama = HookedTransformer.from_pretrained(
     "Llama-2-7b",
     hf_model=model, 
-    device=device, 
+    device='cpu', 
     fold_ln=False, 
     center_writing_weights=False, 
     center_unembed=False, 
     tokenizer=tokenizer
 )
 
+# %%
+#llama = llama.to(device)
+
 # %% 
 # Try the loaded llama
 pp(llama) 
 pp(llama.generate("The capital of Germany is", max_new_tokens=20, temperature=0))
+
+# %% 
+prompt = "Hey, are you conscious? Can you talk to me?"
+inputs = tokenizer(prompt, return_tensors="pt")
+# Generate
+generate_ids = model.generate(inputs.input_ids, max_length=30)
+pp(tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0])
 
 # %%
 # Measure accuracies of the probes
