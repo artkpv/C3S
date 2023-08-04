@@ -20,7 +20,7 @@ dependencies:
   - simple-parsing
   - torchvision 
   - torchaudio
-  - tokenizer>=0.13.3
+  - tokenizers>=0.13.3
   - tqdm
   - python
   - git
