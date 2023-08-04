@@ -1,13 +1,10 @@
 channels:
-  - nvidia
   - pytorch
   - conda-forge
   - r
   - defaults
 dependencies:
   - einops
-  - h11
-  - httpcore
   - huggingface::datasets
   - huggingface::transformers
   - ipykernel
@@ -17,15 +14,15 @@ dependencies:
   - plotly
   - protobuf
   - pynvml
-  - pytorch=2.0.*
-  - pytorch-cuda=11.8
+  - pytorch
   - scikit-learn
   - sentencepiece
   - simple-parsing
   - torchvision 
   - torchaudio
+  - tokenizer>=0.13.3
   - tqdm
-  - python=3.10
+  - python
   - git
   - pip
   - pip:
