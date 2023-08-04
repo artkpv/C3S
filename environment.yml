@@ -6,7 +6,7 @@ channels:
 dependencies:
   - einops
   - huggingface::datasets
-  - huggingface::transformers
+  - huggingface::transformers>=4.10.*
   - ipykernel
   - ipywidgets
   - jaxtyping
