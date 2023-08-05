@@ -107,4 +107,18 @@ tqa_formated_dataset_data, tqa_formated_dataset_labels = create_tokenized_tqa_da
 
 # %%  
 reporter_path = Path('/workspace/llama/7Bf_converted/dbpedia_14/gifted-poitras/reporters/layer_31.pt')
-reporter = torch.load(reporter_path, map_location=device)
+reporter = torch.load(
+    reporter_path,
+    map_location=device
+).to(torch.float16)
+
+# %%
+ids = tqa_formated_dataset_data[0]
+with torch.no_grad():
+    outputs = model(
+        ids.reshape((1,-1)).to(device),
+        output_hidden_states=True
+    )
+
+val_credences = reporter(outputs.hidden_states[31][0])
+# %%
