@@ -32,14 +32,16 @@ pp(device)
 
 seed = 42
 np_rand = np.random.default_rng(seed=42)
+model_type = torch.float32
 
 
 # %%
 # Load model
-tokenizer = LlamaTokenizer.from_pretrained("/workspace/llama/7Bf_converted")
+llama_path = "/home/art/mydir/dev/Capstone23/7bf_converted"
+tokenizer = LlamaTokenizer.from_pretrained(llama_path)
 model = LlamaForCausalLM.from_pretrained(
-    "/workspace/llama/7Bf_converted", 
-    torch_dtype=torch.float16,
+    llama_path, 
+    torch_dtype=model_type,
     device_map="auto"
 )
 model.eval()
@@ -61,7 +63,7 @@ model.eval()
 pipeline = transformers.pipeline(
     "text-generation",
     model=model,
-    torch_dtype=torch.float16,
+    torch_dtype=model_type,
     device_map="auto",
     tokenizer=tokenizer
 )
@@ -88,7 +90,7 @@ for seq in sequences:
 # %% 
 prompt = "Write binary search algorithm in Python. Answer:"
 batch = tokenizer(prompt, return_tensors="pt")
-batch = {k: v.to("cuda") for k, v in batch.items()}
+batch = {k: v.to(device) for k, v in batch.items()}
 with torch.no_grad():
     outputs = model.generate(**batch, max_length=150)
 output_text = tokenizer.decode(outputs[0])
