@@ -24,7 +24,7 @@ def get_tqa_dataset(np_rand):
     while correct_statements or incorrect_statements:
         x = []
         y = []
-        for _ in range(np_rand.integers(2, 5)):
+        for _ in (1,): # range(np_rand.integers(2, 5)):
             label =  np_rand.integers(0,2)
             statements = (incorrect_statements, correct_statements)[label]
             if statements:
@@ -54,6 +54,4 @@ def create_tokenized_tqa_dataset(tokenizer, tqa_dataset, np_rand):
             labels += [(x_t.size(0)-1, true_label)]
         tqa_formated_dataset_data += [x_t]
         tqa_formated_dataset_labels += [labels]
-    #pp(tqa_formated_dataset_data[0].shape)
-    #pp(tqa_formated_dataset_labels[0])
     return (tqa_formated_dataset_data, tqa_formated_dataset_labels)
