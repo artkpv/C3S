@@ -37,7 +37,7 @@ model_type = torch.float16
 
 # %%
 # Load model
-llama_path = "/home/art/mydir/dev/Capstone23/7bf_converted"
+llama_path = "/workspace/llama/"
 tokenizer = LlamaTokenizer.from_pretrained(llama_path)
 model = LlamaForCausalLM.from_pretrained(
     llama_path, 
@@ -92,7 +92,7 @@ prompt = "Write binary search algorithm in Python. Answer:"
 batch = tokenizer(prompt, return_tensors="pt").to(device)
 with torch.no_grad():
     outputs = model.generate(**batch, max_new_tokens=150)[0]
-pp(tokenizer.decode(outputs[0], skip_special_tokens=True))
+pp(tokenizer.decode(outputs, skip_special_tokens=True))
 
 
 # %%
