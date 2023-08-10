@@ -32,7 +32,7 @@ pp(device)
 
 seed = 42
 np_rand = np.random.default_rng(seed=42)
-model_type = torch.float32
+model_type = torch.float16
 
 
 # %%
@@ -89,12 +89,10 @@ for seq in sequences:
 
 # %% 
 prompt = "Write binary search algorithm in Python. Answer:"
-batch = tokenizer(prompt, return_tensors="pt")
-batch = {k: v.to(device) for k, v in batch.items()}
+batch = tokenizer(prompt, return_tensors="pt").to(device)
 with torch.no_grad():
-    outputs = model.generate(**batch, max_length=150)
-output_text = tokenizer.decode(outputs[0])
-pp(output_text)
+    outputs = model.generate(**batch, max_new_tokens=150)[0]
+pp(tokenizer.decode(outputs[0], skip_special_tokens=True))
 
 
 # %%
