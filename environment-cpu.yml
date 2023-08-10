@@ -6,8 +6,10 @@ channels:
   - defaults
 dependencies:
   - einops
-  - huggingface::datasets
-  - huggingface::transformers
+  - cpuonly
+  - conda-forge::datasets
+  - conda-forge::transformers
+  - conda-forge::tokenizers>=0.13.3
   - ipykernel
   - ipywidgets
   - jaxtyping
@@ -15,15 +17,14 @@ dependencies:
   - plotly
   - protobuf
   - pynvml
+  - python==3.10
   - pytorch::pytorch
-  - pytorch-cuda
   - scikit-learn
   - sentencepiece
   - simple-parsing
-  - torchvision 
   - torchaudio
+  - torchvision 
   - tqdm
-  - python
   - git
   - pip
   - pip:

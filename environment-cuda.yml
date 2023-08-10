@@ -1,0 +1,33 @@
+channels:
+  - nvidia
+  - pytorch
+  - conda-forge
+  - r
+  - defaults
+dependencies:
+  - einops
+  - conda-forge::datasets
+  - conda-forge::transformers
+  - conda-forge::tokenizers>=0.13.3
+  - ipykernel
+  - ipywidgets
+  - jaxtyping
+  - numpy
+  - plotly
+  - protobuf
+  - pynvml
+  - python==3.10
+  - pytorch::pytorch
+  - pytorch-cuda
+  - scikit-learn
+  - sentencepiece
+  - simple-parsing
+  - torchaudio
+  - torchvision 
+  - tqdm
+  - git
+  - pip
+  - pip:
+    - circuitsvis
+    - git+https://github.com/neelnanda-io/TransformerLens
+    - "-e lib/elk"
