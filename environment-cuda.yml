@@ -5,6 +5,8 @@ channels:
   - r
   - defaults
 dependencies:
+  - httpcore
+  - sniffio
   - einops
   - conda-forge::datasets
   - conda-forge::transformers
