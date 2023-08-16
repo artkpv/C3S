@@ -106,7 +106,7 @@ tqa_formated_dataset_data, tqa_formated_dataset_labels = create_tokenized_tqa_da
     tokenizer, tqa_dataset, np_rand)
 
 # %%  
-reporter_path = Path('data/llama-7b/dbpedia_14/sad-ellis/reporters/layer_31.pt')
+reporter_path = Path('data/llama-7bf/dbpedia_14/gifted-poitras/reporters/layer_31.pt')
 #reporter_path = Path('/workspace/llama/7Bf_converted/dbpedia_14/unruffled-margulis/reporters/layer_31.pt')
 reporter = torch.load(
     reporter_path,
@@ -114,15 +114,20 @@ reporter = torch.load(
 )
 
 # %%
-sampleid = 0
-with torch.no_grad():
-    outputs = model(
-        tqa_formated_dataset_data[sampleid].reshape((1,-1)).to(device),
-        output_hidden_states=True
-    )
-r_out = reporter(outputs.hidden_states[31][0:1].to(torch.float32))
-label = tqa_formated_dataset_labels[sampleid]
-pp(r_out[0, label[0]])
-pp(label)
+def predict(sampleid):
+    with torch.no_grad():
+        outputs = model(
+            tqa_formated_dataset_data[sampleid].reshape((1,-1)).to(device),
+            output_hidden_states=True
+        )
+    labels = tqa_formated_dataset_labels[sampleid]
+    token_ids = [e[0] for e in labels]
+    pp(f'{token_ids=}')
+    r_out = reporter(outputs.hidden_states[31][token_ids].to(torch.float32))
+    label = tqa_formated_dataset_labels[sampleid]
+    pp(type(r_out))
+    pp(label)
+
+predict(sampleid = 0)
 
 # %%
