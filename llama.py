@@ -113,7 +113,7 @@ reporter = torch.load(
 )
 
 # %%
-sampleid =0
+sampleid = 0
 with torch.no_grad():
     outputs = model(
         tqa_formated_dataset_data[sampleid].reshape((1,-1)).to(device),
