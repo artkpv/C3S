@@ -106,7 +106,8 @@ tqa_formated_dataset_data, tqa_formated_dataset_labels = create_tokenized_tqa_da
     tokenizer, tqa_dataset, np_rand)
 
 # %%  
-reporter_path = Path('/workspace/llama/7Bf_converted/dbpedia_14/unruffled-margulis/reporters/layer_31.pt')
+reporter_path = Path('data/llama-7b/dbpedia_14/sad-ellis/reporters/layer_31.pt')
+#reporter_path = Path('/workspace/llama/7Bf_converted/dbpedia_14/unruffled-margulis/reporters/layer_31.pt')
 reporter = torch.load(
     reporter_path,
     map_location=device
