@@ -47,6 +47,8 @@ model = LlamaForCausalLM.from_pretrained(
 model.eval()
 
 # %%
+# Loading into HookedTransformer
+
 #llama = HookedTransformer.from_pretrained(
 #    "Llama-2-7b",
 #    hf_model=model, 
@@ -60,39 +62,41 @@ model.eval()
 # pp(llama.generate("The capital of Germany is", max_new_tokens=20, temperature=0))
 
 # %%
-pipeline = transformers.pipeline(
-    "text-generation",
-    model=model,
-    torch_dtype=model_type,
-    device_map="auto",
-    tokenizer=tokenizer
-)
-prompt= '''
-<s>[INST] <<SYS>>
-You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
+# Playing with LLAMA-2
 
-If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
-<</SYS>>
-
-There's a llama in my garden 😱 What should I do? [/INST]
-'''
-sequences = pipeline(
-    prompt,
-    do_sample=True,
-    top_k=10,
-    num_return_sequences=1,
-    eos_token_id=tokenizer.eos_token_id,
-    max_length=500,
-)
-for seq in sequences:
-    print(f"Result: {seq['generated_text']}")
-
+# pipeline = transformers.pipeline(
+#     "text-generation",
+#     model=model,
+#     torch_dtype=model_type,
+#     device_map="auto",
+#     tokenizer=tokenizer
+# )
+# prompt= '''
+# <s>[INST] <<SYS>>
+# You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
+# 
+# If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
+# <</SYS>>
+# 
+# There's a llama in my garden 😱 What should I do? [/INST]
+# '''
+# sequences = pipeline(
+#     prompt,
+#     do_sample=True,
+#     top_k=10,
+#     num_return_sequences=1,
+#     eos_token_id=tokenizer.eos_token_id,
+#     max_length=500,
+# )
+# for seq in sequences:
+#     print(f"Result: {seq['generated_text']}")
+# 
 # %% 
-prompt = "Write binary search algorithm in Python. Answer:"
-batch = tokenizer(prompt, return_tensors="pt").to(device)
-with torch.no_grad():
-    outputs = model.generate(**batch, max_new_tokens=150)[0]
-pp(tokenizer.decode(outputs, skip_special_tokens=True))
+# prompt = "Write binary search algorithm in Python. Answer:"
+# batch = tokenizer(prompt, return_tensors="pt").to(device)
+# with torch.no_grad():
+#     outputs = model.generate(**batch, max_new_tokens=150)[0]
+# pp(tokenizer.decode(outputs, skip_special_tokens=True))
 
 
 # %%
@@ -106,23 +110,30 @@ tqa_formated_dataset_data, tqa_formated_dataset_labels = create_tokenized_tqa_da
     tokenizer, tqa_dataset, np_rand)
 
 # %%  
-reporter_path = Path('data/llama-7b/dbpedia_14/sad-ellis/reporters/layer_31.pt')
+reporter_path = Path('data/llama-7bf/dbpedia_14/gifted-poitras/reporters/layer_31.pt')
 #reporter_path = Path('/workspace/llama/7Bf_converted/dbpedia_14/unruffled-margulis/reporters/layer_31.pt')
 reporter = torch.load(
     reporter_path,
-    map_location=device
+    map_location='cpu'
 )
 
 # %%
-for sampleid in range(len(tqa_formated_dataset_data)):
-    with torch.no_grad():
+def predict(sampleid):
+    with torch.inference_mode():
         outputs = model(
-            tqa_formated_dataset_data[sampleid].reshape((1,-1)).to(device),
+            tqa_formated_dataset_data[sampleid].to(device).reshape((1,-1)),
             output_hidden_states=True
         )
-    r_out = reporter(outputs.hidden_states[31][0:1].to(torch.float32))
-    label = tqa_formated_dataset_labels[sampleid]
-    pp(r_out[0, label[0]])
-    pp(label)
+        activations = outputs.hidden_states[31].to('cpu').to(torch.float32).squeeze()
+        pp(f'{activations.shape=}')
+
+        labels = tqa_formated_dataset_labels[sampleid]
+        pp(labels)
+        token_ids = [e[0] for e in labels]
+        pp(f'{token_ids=}')
+        r_out = reporter(activations[token_ids])
+        pp(r_out)
+
+predict(sampleid = 0)
 
 # %%
