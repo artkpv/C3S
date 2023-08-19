@@ -160,6 +160,7 @@ for i,e in enumerate(output['attentions']):
 pp(output['last_hidden_state'].shape)
 # See https://huggingface.co/docs/transformers/main_classes/output
 
+# %%
 # Visualizing scores per tokens
 def visualize(layer, reporter):
     with torch.inference_mode():
@@ -169,7 +170,9 @@ def visualize(layer, reporter):
 
 for dataset_name in ('dbpedia_14', 'ag_news', 'imdb'):
     layer=47
-    reporter = elk.training.Reporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
+    reporter = torch.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
+    #reporter = elk.training.Reporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
+    pp(reporter)
     reporter.eval()
     print(f'Probe gpt2-xl trained on {dataset_name} for {layer}:')
     visualize(layer, reporter)
@@ -183,9 +186,9 @@ pp(deberta)
 
 # %%
 # Create tokenized TruthfulQA dataset
-tqa_dataset = get_tqa_dataset()
-tqa_formated_dataset_data, tqa_formated_dataset_labels = _create_tokenized_tqa_dataset(
-    deberta_tokenizer, tqa_dataset)
+tqa_dataset = get_tqa_dataset(np_rand)
+tqa_formated_dataset_data : list, tqa_formated_dataset_labels : list = create_tokenized_tqa_dataset(
+    deberta_tokenizer, tqa_dataset, np_rand)
 
 # %% 
 # Calculate accuracy
@@ -195,9 +198,13 @@ reporter = torch.load(f'./data/deberta-v2-xxlarge-mnli/imdb/eager-colden/reporte
 #reporter.eval()
 correct_num = 0
 all_num = 0
-# TODO: vectorized version. Now it runs like forever.
-SOME_SUBSET=10
-for data, labels in tqdm(list(zip(tqa_formated_dataset_data, tqa_formated_dataset_labels))[:SOME_SUBSET]):
+set_num = len(tqa_formated_dataset_data)
+SOME_SUBSET=30
+selected_indeces = torch.randperm(set_num)[:SOME_SUBSET]
+subset = [e for i,e in enumerate(zip(tqa_formated_dataset_data, tqa_formated_dataset_labels)) if i in selected_indeces]
+for data, labels in tqdm(subset):
+    data = data.unsqueeze(0)
+    pp(data.shape)
     with torch.inference_mode():
         output = deberta.forward(
             data.to(device),
@@ -205,15 +212,19 @@ for data, labels in tqdm(list(zip(tqa_formated_dataset_data, tqa_formated_datase
         )
         h_states = output['hidden_states'][layer][0].to(device)
         logits = reporter(h_states)
-        pp(logits.shape)
+        pp(f'{labels=}')
         res = logits.sigmoid()
+        pp(f'{logits[[0,-1]]=}')
+        pp(f'{res[[0,-1]]=}')
         #visualize(data, tokenizer, res, labels)
         for (pos, l) in labels:
             all_num += 1
-            if (res[pos-1] > 0.5) == (l == 1):
+            if (res[0] > 0.5) == (l == 1):
                 correct_num += 1
-    print(f'''Accuracy for TruthfulQA, using GPT2-xl, and probe from {dataset_name} on {layer}:
-{correct_num}/{all_num} = {correct_num/all_num:.2}.''')
+            #if (res[pos-1] > 0.5) == (l == 1):
+            #    correct_num += 1
+    print(f'{correct_num}/{all_num}')
+print(f'''Accuracy for TruthfulQA, using GPT2-xl, and probe from {dataset_name} on {layer}: {correct_num}/{all_num} = {correct_num/all_num:.1}.''')
 
 # %% 
 # IMDB dataset
@@ -353,3 +364,11 @@ def t5_experiments():
     # pp(l11cp(output['decoder_hidden_states'][0][1,-1]))
 
 #t5_experiments()
+
+# %%
+# IMBD based multisentence dataset
+
+# For 3 models (LLAMA, DeBERT, GPT2)
+
+imdb_ms_ds = datasecreate_multisentence_imdb_ds()
+
