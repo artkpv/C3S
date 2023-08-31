@@ -1,9 +1,4 @@
 '''
-- Creates a multi-sentence dataset based on TruthfulQA dataset (in each 
-  sample there are many question and answer pairs).
-- Calculates accuracy on this dataset for GPT2-xl model and a probe.
-- Investigates an example from this dataset.
-- Calculates a probe score on IMDB dataset using TransformerLens. And visualizes score on each layer.
 
 '''
 #%%
@@ -39,33 +34,9 @@ seed = 42
 np_rand = np.random.default_rng(seed=42)
 
 # %%
-# Create dataset
+# Creates a multi-sentence dataset based on TruthfulQA dataset (in each 
+# sample there are many question and answer pairs).
 tqa_dataset = get_tqa_dataset(np_rand)
-
-# %%
-# Init LLaMA.
-hf_llama : LlamaForCausalLM = LlamaForCausalLM.from_pretrained('huggyllama/llama-7b')
-ht_model: HookedTransformer = HookedTransformer.from_pretrained("llama-7b", hf_model=hf_llama)
-ht_model.eval()
-pp(ht_model)
-llama_tokenizer = LlamaTokenizer.from_pretrained('huggyllama/llama-7b', padding_side='left')
-llama_tokenizer = ht_model.tokenizer
-
-# %%
-tqa_formated_dataset_data, tqa_formated_dataset_labels = create_tokenized_tqa_dataset(
-    llama_tokenizer, tqa_dataset, np_rand)
-
-# %%
-
-with torch.inference_mode():
-    ids = llama_tokenizer.encode(
-        # ["What's the probability of human race extinction from artificial general intelligence?"], 
-        ["If we divide 25 by 5 the answer would be:"], 
-        return_tensors='pt'
-    ).reshape(1, -1)
-    generate_ids = llama.generate(ids, max_length=100)
-    output = llama_tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
-    pp(output)
 
 # %%
 # GPT2-XL from HF
@@ -102,7 +73,8 @@ def load(cls, path: Path | str, *, map_location: str = "cpu"):
             f"Expected a `dict` or `Reporter` object, but got {type(obj)}."
         )
 # %% 
-# Calculate accuracy
+#  Calculates accuracy on this dataset for GPT2-xl model and a probe.
+
 layer=47
 #dataset_name = 'dbpedia_14'
 #reporter = elk.training.Reporter.load(f'./data/gpt2-xl/{dataset_name}/reporters/layer_{layer}.pt', map_location=device)
@@ -134,7 +106,7 @@ layer=47
 # {correct_num}/{all_num} = {correct_num/all_num:.2}.''')
 
 #%%
-# Investigate single sample.
+# Investigates an example from this dataset.
 with torch.inference_mode():
     output = gpt2_xl.forward(
         tqa_formated_dataset_data[0],
@@ -285,6 +257,7 @@ layers = ht_model.cfg.n_layers
 heads = ht_model.cfg.n_heads
 
 # %%
+# Calculates a probe score on IMDB dataset using TransformerLens. And visualizes score on each layer.
 assert is_lens
 
 sample = imdb_ds['train']['text'][156]
