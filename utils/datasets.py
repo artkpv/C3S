@@ -66,9 +66,7 @@ def create_multisentence_imdb_ds(np_rand, tokenizer, max_sentences_num=4):
         sentences each (several sentences in a sample).
       - left and right labels are whether a sentence from left or right is true.
     '''
-
     imdb_ds = load_dataset('imdb')
-
     init_prompt = tokenizer.encode("The following movie reviews express what sentiment?", return_tensors='pt').squeeze_(0)
     qa_prompt = "\n{}\n{}\n"  # Question and answer prompt.
     sentiments = ['negative', 'positive']
