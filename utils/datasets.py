@@ -1,11 +1,6 @@
-'''
-Datasets
-'''
 from datasets import load_dataset
 import torch
 
-# Many statements dataset based on TruthfulQA
-#@cache
 def get_tqa_dataset(np_rand):
     '''
     Returns array of (x, y) pairs, where x is an array of (q, s), 
@@ -35,7 +30,6 @@ def get_tqa_dataset(np_rand):
             tqa_dataset.append((x, y))
     return tqa_dataset
 
-#%%
 def create_tokenized_tqa_dataset(tokenizer, tqa_dataset, np_rand):
     tqa_formated_dataset_data = []
     tqa_formated_dataset_labels = []
@@ -56,37 +50,3 @@ def create_tokenized_tqa_dataset(tokenizer, tqa_dataset, np_rand):
         tqa_formated_dataset_labels += [labels]
     return (tqa_formated_dataset_data, tqa_formated_dataset_labels)
 
-
-def create_multisentence_imdb_ds(np_rand, tokenizer, max_sentences_num=4):
-    '''
-      Creates IMDB based dataset with a sample with multiple sentences.
-      Returns a list of form:  [( (left, right), (left_labels, right_labels) ) .. ]
-      where 
-      - left and right are contrast pairs, i.e. samples of tokenized true and false 
-        sentences each (several sentences in a sample).
-      - left and right labels are whether a sentence from left or right is true.
-    '''
-    imdb_ds = load_dataset('imdb')
-    init_prompt = tokenizer.encode("The following movie reviews express what sentiment?", return_tensors='pt').squeeze_(0)
-    qa_prompt = "\n{}\n{}\n"  # Question and answer prompt.
-    sentiments = ['negative', 'positive']
-    num = len(imdb_ds['test']['text'])
-    to_switch = np_rand.integers(0, 2, (num,))
-    dataset = list()
-    current_num = 0
-    for i, e in enumerate(imdb_ds['test']):
-        if current_num == 0:
-            dataset += [[
-                [init_prompt, init_prompt],
-                [list(), list()]
-            ]]
-            current_num = np_rand.integers(1, max_sentences_num+1)
-        is_right = to_switch[i]
-        for pos in (0, 1):
-            qa = qa_prompt.format(e['text'], sentiments[e['label'] - pos - to_switch[i]])
-            qa_ids = tokenizer.encode(qa, return_tensors='pt').squeeze_(0)
-            dataset[-1][0][pos] = torch.concat(dataset[-1][0][pos], qa_ids)
-            dataset[-1][1][pos] += [(len(dataset[-1][0][pos]), (pos - is_right)%2)]
-        current_num -= 1
-        
-    return dataset
