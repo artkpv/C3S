@@ -1,0 +1,7 @@
+Consider this question: {{question}} And these answers:
+A) {{a_A}}.
+B) {{a_B}}.
+The answer to that question will be {%- if is_disjunction %} either A or B
+{%- else %}
+ both A and B
+{%- endif -%}, true or false? {{label}}

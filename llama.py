@@ -14,7 +14,7 @@ from pprint import pp
 from transformer_lens.hook_points import HookPoint
 from transformer_lens import utils, HookedTransformer, HookedTransformerConfig, FactoredMatrix, ActivationCache
 import einops
-import elk 
+# import elk 
 from pathlib import Path
 
 import circuitsvis as cv
@@ -34,6 +34,10 @@ seed = 42
 np_rand = np.random.default_rng(seed=42)
 model_type = torch.float16
 
+# %%
+
+tqa_dataset = get_tqa_dataset(np_rand)
+pp(tqa_dataset[0])
 
 # %%
 # Load model
