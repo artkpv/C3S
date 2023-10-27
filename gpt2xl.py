@@ -25,7 +25,7 @@ import circuitsvis as cv
 #from promptsource.templates import DatasetTemplates
 from plotly_utils import imshow
 from functools import cache
-from utils.datasets import get_tqa_dataset, create_tokenized_tqa_dataset
+from utils.truthful_qa_ds import get_tqa_dataset, create_tokenized_tqa_dataset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 pp(device)

@@ -8,7 +8,7 @@ from datasets import load_dataset
 from pprint import pp
 
 #from promptsource.templates import DatasetTemplates
-from utils.datasets import get_tqa_dataset
+from utils.truthful_qa_ds import get_tqa_dataset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 pp(device)

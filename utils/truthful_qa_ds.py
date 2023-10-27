@@ -8,7 +8,6 @@ import torch
 def get_question_answer_dataset():
     """
     Returns dataset with prompts for single answer, for disjunction and for conjunction.
-
     """
     truthfulqa = load_dataset("truthful_qa", "generation")  # 817 rows
     env = Environment(loader=PackageLoader("utils"), autoescape=select_autoescape())
@@ -31,17 +30,26 @@ def get_question_answer_dataset():
                 "is_correct": True,
             }
         )
-        break
+        qa_dataset.append(
+            {
+                "input": qa_t.render(
+                    row,
+                    is_correct_answer=True,
+                    label=True,
+                ),
+                "label": True,
+                "is_correct": True,
+            }
+        )
     return qa_dataset, qas_dataset
 
 
-qa_dataset, qas_dataset = get_question_answer_dataset()
-print(qa_dataset)
-print(qas_dataset)
+#qa_dataset, qas_dataset = get_question_answer_dataset()
+#print(qa_dataset)
+#print(qas_dataset)
+
 
 # %%
-
-
 def get_tqa_dataset(np_rand):
     """
 

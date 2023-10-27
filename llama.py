@@ -13,15 +13,10 @@ import transformers
 from pprint import pp
 from transformer_lens.hook_points import HookPoint
 from transformer_lens import utils, HookedTransformer, HookedTransformerConfig, FactoredMatrix, ActivationCache
-import einops
-# import elk 
 from pathlib import Path
 
-import circuitsvis as cv
 #from promptsource.templates import DatasetTemplates
-from plotly_utils import imshow
-from functools import cache
-from utils.datasets import get_tqa_dataset, create_tokenized_tqa_dataset
+from utils.truthful_qa_ds import get_question_answer_dataset
 
 
 from huggingface_hub import login
@@ -36,34 +31,33 @@ model_type = torch.float16
 
 # %%
 
-tqa_dataset = get_tqa_dataset(np_rand)
-pp(tqa_dataset[0])
+qa_dataset, qas_dataset = get_question_answer_dataset()
+pp(qas_dataset[0])
+pp(qa_dataset[0])
 
 # %%
 # Load model
-llama_path = "/workspace/llama/"
+llama_path = "../llama/7bf_converted/"
 tokenizer = LlamaTokenizer.from_pretrained(llama_path)
 model = LlamaForCausalLM.from_pretrained(
     llama_path, 
     torch_dtype=model_type,
-    device_map="auto"
+    device_map="cpu"
 )
 model.eval()
+pp(model)
 
+#%%
+t_output = tokenizer(qa_dataset[0]['input'], return_tensors="pt")
+pp(t_output)
+
+
+#%%
+outputs = model(
+    **t_output,
+    output_hidden_states=True
+)
 # %%
-# Loading into HookedTransformer
-
-#llama = HookedTransformer.from_pretrained(
-#    "Llama-2-7b",
-#    hf_model=model, 
-#    device='cpu', 
-#    fold_ln=False, 
-#    center_writing_weights=False, 
-#    center_unembed=False, 
-#    tokenizer=tokenizer
-#)
-# pp(llama) 
-# pp(llama.generate("The capital of Germany is", max_new_tokens=20, temperature=0))
 
 # %%
 # Playing with LLAMA-2
@@ -108,18 +102,18 @@ model.eval()
 
 # %%
 # Load dataset
-tqa_dataset = get_tqa_dataset(np_rand)
-# %%
-tqa_formated_dataset_data, tqa_formated_dataset_labels = create_tokenized_tqa_dataset(
-    tokenizer, tqa_dataset, np_rand)
-
-# %%  
-reporter_path = Path('data/llama-7bf/dbpedia_14/gifted-poitras/reporters/layer_31.pt')
-#reporter_path = Path('/workspace/llama/7Bf_converted/dbpedia_14/unruffled-margulis/reporters/layer_31.pt')
-reporter = torch.load(
-    reporter_path,
-    map_location='cpu'
-)
+#tqa_dataset = get_tqa_dataset(np_rand)
+## %%
+#tqa_formated_dataset_data, tqa_formated_dataset_labels = create_tokenized_tqa_dataset(
+#    tokenizer, tqa_dataset, np_rand)
+#
+## %%  
+#reporter_path = Path('data/llama-7bf/dbpedia_14/gifted-poitras/reporters/layer_31.pt')
+##reporter_path = Path('/workspace/llama/7Bf_converted/dbpedia_14/unruffled-margulis/reporters/layer_31.pt')
+#reporter = torch.load(
+#    reporter_path,
+#    map_location='cpu'
+#)
 
 # %%
 def predict(sampleid):
