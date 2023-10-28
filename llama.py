@@ -11,8 +11,8 @@ from jaxtyping import Int, Float
 from transformers import LlamaForCausalLM, LlamaTokenizer
 import transformers
 from pprint import pp
-from transformer_lens.hook_points import HookPoint
-from transformer_lens import utils, HookedTransformer, HookedTransformerConfig, FactoredMatrix, ActivationCache
+#from transformer_lens.hook_points import HookPoint
+#from transformer_lens import utils, HookedTransformer, HookedTransformerConfig, FactoredMatrix, ActivationCache
 from pathlib import Path
 
 #from promptsource.templates import DatasetTemplates
@@ -37,12 +37,12 @@ pp(qa_dataset[0])
 
 # %%
 # Load model
-llama_path = "../llama/7bf_converted/"
-tokenizer = LlamaTokenizer.from_pretrained(llama_path)
+#llama_path = "../llama/7bf_converted/"
+tokenizer = LlamaTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
+tokenizer.pad_token = tokenizer.eos_token
+    
 model = LlamaForCausalLM.from_pretrained(
-    llama_path, 
-    torch_dtype=model_type,
-    device_map="cpu"
+    "meta-llama/Llama-2-7b-chat-hf"
 )
 model.eval()
 pp(model)
@@ -53,11 +53,10 @@ pp(t_output)
 
 
 #%%
-outputs = model(
-    **t_output,
-    output_hidden_states=True
-)
+outputs = model(**t_output, output_hidden_states=True)
 # %%
+pp(outputs.logits.shape)
+pp(tokenizer.decode(outputs.logits[:, -1]))
 
 # %%
 # Playing with LLAMA-2
@@ -90,11 +89,11 @@ outputs = model(
 #     print(f"Result: {seq['generated_text']}")
 # 
 # %% 
-# prompt = "Write binary search algorithm in Python. Answer:"
-# batch = tokenizer(prompt, return_tensors="pt").to(device)
-# with torch.no_grad():
-#     outputs = model.generate(**batch, max_new_tokens=150)[0]
-# pp(tokenizer.decode(outputs, skip_special_tokens=True))
+prompt = "Write binary search algorithm in Python. Answer:"
+batch = tokenizer(prompt, return_tensors="pt")
+with torch.no_grad():
+    outputs = model.generate(**batch, max_new_tokens=100)[0]
+pp(tokenizer.decode(outputs, skip_special_tokens=True))
 
 
 # %%
