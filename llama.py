@@ -56,7 +56,8 @@ pp(t_output)
 outputs = model(**t_output, output_hidden_states=True)
 # %%
 pp(outputs.logits.shape)
-pp(tokenizer.decode(outputs.logits[:, -1]))
+pp(tokenizer.decode(outputs.logits[0].argmax(dim=-1)))
+pp(qa_dataset[0]['input'])
 
 # %%
 # Playing with LLAMA-2
