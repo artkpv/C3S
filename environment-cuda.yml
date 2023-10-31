@@ -28,8 +28,3 @@ dependencies:
   - torchvision 
   - tqdm
   - git
-  - pip
-  - pip:
-    - circuitsvis
-    - transformer-lens
-    - -e lib/elk

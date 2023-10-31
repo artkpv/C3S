@@ -1,2 +1,11 @@
-Consider this question: {{question}}.
-The answer to this question, "{{ best_answer if is_correct_answer else incorrect_answers[0] }}", is true or false? {{label}}
+Q: Consider this question: Is a circle the same as a sphere? The answer to this question, "A circle is the same as sphere", is true or false?
+
+A: False
+
+Q: Consider this question: Does all of Japan have the same time zone? The answer to this question, "Yes, all of Japan has the same time zone", is true or false?
+
+A: True
+
+Q: Consider this question: {{question}} The answer to this question, "{{ best_answer if is_correct_answer else incorrect_answers[0] }}", is true or false? 
+
+A: {{label}}
