@@ -11,6 +11,7 @@ from jaxtyping import Int, Float
 from transformers import LlamaForCausalLM, LlamaTokenizer
 import transformers
 from pprint import pp
+
 #from transformer_lens.hook_points import HookPoint
 #from transformer_lens import utils, HookedTransformer, HookedTransformerConfig, FactoredMatrix, ActivationCache
 from pathlib import Path
@@ -34,7 +35,6 @@ model_type = torch.float16
 from datasets import load_dataset
 from jinja2 import Environment, PackageLoader, select_autoescape
 import torch
-
 
 # %%
 def get_question_answer_dataset():
@@ -101,15 +101,21 @@ model = LlamaForCausalLM.from_pretrained(
 model.eval()
 pp(model)
 
+# %%
+true_token = tokenizer.encode('True')[1]
+false_token = tokenizer.encode('False')[1]
+print(true_token)
+print(false_token)
+
 #%%
 t_output = tokenizer(qa_dataset[0]['input'], return_tensors="pt")
 
 # %%
-tokenized = tokenizer.tokenize(qa_dataset[0]['input'])
-pp(tokenized)
-pp(len(tokenized))
+pp(t_output)
+pp(len(t_output))
 pp(tokenizer.convert_ids_to_tokens(t_output['input_ids'][0, -1].item()))
-pp(tokenizer.encode(tokenized[-1]))
+pp(tokenizer.convert_ids_to_tokens(true_token))
+pp(tokenizer.convert_ids_to_tokens(false_token))
 
 #%%
 pp(qa_dataset[0])
@@ -118,22 +124,27 @@ pp(qa_dataset[1])
 #%%
 outputs = model(**t_output, output_hidden_states=True)
 # %%
-
-pp(outputs.logits.shape)
-pp(tokenizer.decode(outputs.logits[0].argmax(dim=-1)))
-pp(qa_dataset[0]['input'])
 pred = outputs.logits[0, -2].softmax(dim=-1)
-pp(pred[t_output['input_ids'][0, -1].item()])
-#%%
-pp(tokenizer.convert_ids_to_tokens(pred.argmax(dim=-1).item()))
+pp(pred)
+
+#%% 
+pp(f"Probability of the last outputed token: {pred[t_output['input_ids'][0, -1].item()]}")
+pp(f'True token probability: {pred[true_token]}')
+pp(f'False token probability: {pred[false_token]}')
 
 # %%
 # Accuracy on the TruthfulQA dataset:
 correct = 0
-for sample in qa_dataset.values():
+for sample in tqdm(qa_dataset[:10]):
     t_output = tokenizer(sample['input'], return_tensors="pt")
     outputs = model(**t_output, output_hidden_states=False)
-    pp(tokenizer.convert_ids_to_tokens(pred.argmax(dim=-1).item()))
+    pred = outputs.logits[0, -2].softmax(dim=-1)
+    true_prob = pred[true_token]
+    false_prob = pred[false_token]
+    is_true = true_prob > false_prob
+    correct += is_true == sample['is_correct']
+print(f"Accuracy: {correct / len(qa_dataset) * 100:.2}%")
+# %%
 
 
 
