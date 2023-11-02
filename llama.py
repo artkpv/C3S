@@ -132,18 +132,38 @@ pp(f"Probability of the last outputed token: {pred[t_output['input_ids'][0, -1].
 pp(f'True token probability: {pred[true_token]}')
 pp(f'False token probability: {pred[false_token]}')
 
+
+# %%
+t_output1 = tokenizer(qa_dataset[1]['input'], padding='max_length', truncation=False, return_tensors="pt")
+t_output2 = tokenizer(qa_dataset[2]['input'], padding='max_length', truncation=False, return_tensors="pt")
+m_output = model(
+    input_ids=torch.stack([torch.tensor(el['input_ids']) for el in [t_output1, t_output2]]),
+    attention_masks=torch.stack([torch.tensor(el['attention_masks']) for el in [t_output1, t_output2]])
+      )
+print(m_output.shape)
+
 # %%
 # Accuracy on the TruthfulQA dataset:
 correct = 0
-for sample in tqdm(qa_dataset[:10]):
-    t_output = tokenizer(sample['input'], return_tensors="pt")
-    outputs = model(**t_output, output_hidden_states=False)
-    pred = outputs.logits[0, -2].softmax(dim=-1)
-    true_prob = pred[true_token]
-    false_prob = pred[false_token]
+batch_size = 10
+for start_i in tqdm(range(0, 1000, batch_size)):
+    batch = qa_dataset[start_i:start_i + batch_size]
+    tokenized = [
+        tokenizer(t['input'], padding='max_length', truncation=False, return_tensors="pt")
+        for t in batch
+    ]
+    input_ids = torch.stack([torch.tensor(el['input_ids']) for el in tokenized])
+    masks = torch.stack([torch.tensor(el['attention_mask']) for el in tokenized])
+    outputs = model(
+        input_ids=input_ids,
+        attention_masks=masks, 
+        output_hidden_states=False)
+    pred = outputs.logits[:, -2].softmax(dim=-1)
+    true_prob = pred[:, true_token]
+    false_prob = pred[:, false_token]
     is_true = true_prob > false_prob
-    correct += is_true == sample['is_correct']
-print(f"Accuracy: {correct / len(qa_dataset) * 100:.2}%")
+    correct += torch.sum(is_true == torch.tensor([s['is_correct'] for s in batch])).item()
+print(f"Accuracy: {correct * 1.0 / len(qa_dataset) * 100.0 :.2}%")
 # %%
 
 
