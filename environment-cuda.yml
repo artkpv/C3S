@@ -4,6 +4,7 @@ channels:
   - pytorch
   - defaults
 dependencies:
+  - conda-forge::accelerate
   - conda-forge::datasets
   - conda-forge::tokenizers >= 0.13.3
   - conda-forge::transformers

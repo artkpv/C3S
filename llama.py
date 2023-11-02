@@ -29,7 +29,23 @@ seed = 42
 np_rand = np.random.default_rng(seed=42)
 model_type = torch.float16
 
-# 
+# %%
+# Load model
+#llama_path = "../llama/7bf_converted/"
+tokenizer = LlamaTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
+tokenizer.add_special_tokens({"pad_token":"<pad>"})
+#tokenizer.pad_token = tokenizer.eos_token
+    
+model = LlamaForCausalLM.from_pretrained(
+    "meta-llama/Llama-2-7b-chat-hf",
+    torch_dtype=model_type,
+    device_map=device,
+)
+model.eval()
+pp(model)
+
+
+# %%
 
 from datasets import load_dataset
 from jinja2 import Environment, PackageLoader, select_autoescape
@@ -87,19 +103,6 @@ def get_question_answer_dataset():
 qa_dataset, qas_and_dataset = get_question_answer_dataset()
 #pp(qas_and_dataset[0])
 pp(qa_dataset[0])
-
-# %%
-# Load model
-#llama_path = "../llama/7bf_converted/"
-tokenizer = LlamaTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
-tokenizer.pad_token = tokenizer.eos_token
-    
-model = LlamaForCausalLM.from_pretrained(
-    "meta-llama/Llama-2-7b-chat-hf"
-)
-model.eval()
-pp(model)
-
 # %%
 true_token = tokenizer.encode('True')[1]
 false_token = tokenizer.encode('False')[1]
@@ -121,6 +124,7 @@ pp(qa_dataset[0])
 pp(qa_dataset[1])
 
 #%%
+t_output = {k:t_output[k].to(device) for k in t_output}
 outputs = model(**t_output, output_hidden_states=True)
 # %%
 pred = outputs.logits[0, -2].softmax(dim=-1)
@@ -134,9 +138,10 @@ pp(f'False token probability: {pred[false_token]}')
 # %%
 # Accuracy on the TruthfulQA dataset:
 correct = 0
-count = 100
+count = 1000
 for sample in tqdm(qa_dataset[:count]):
     t_output = tokenizer(sample['input'], return_tensors="pt")
+    t_output = {k:t_output[k].to(device) for k in t_output}
     outputs = model(**t_output, output_hidden_states=False)
     pred = outputs.logits[0, -2].softmax(dim=-1)
     true_prob = pred[true_token]
@@ -144,6 +149,8 @@ for sample in tqdm(qa_dataset[:count]):
     is_true = true_prob > false_prob
     correct += is_true == sample['is_correct']
 print(f"Correct {correct}, count {count}, accuracy {correct / count:.4}")
+
+# %%
 
 #correct = 0
 #batch_size = 10
