@@ -15,38 +15,40 @@ def get_question_answer_dataset():
     qas_t = env.get_template("question_answers.jinja")
     qas_l_t = env.get_template("question_answers_one_line.jinja")
     qa_dataset = []
-    qas_dataset = []
-    for row in truthfulqa["validation"]:
-        qas_dataset.append(
-            {
-                "input": qas_t.render(
-                    row,
-                    a_A=row["incorrect_answers"][0],
-                    a_B=row["correct_answers"][0],
-                    is_disjunction=True,
-                    label=True,
-                ),
-                "label": True,
-                "is_correct": True,
-            }
-        )
-        qa_dataset.append(
-            {
-                "input": qa_t.render(
-                    row,
-                    is_correct_answer=True,
-                    label=True,
-                ),
-                "label": True,
-                "is_correct": True,
-            }
-        )
-    return qa_dataset, qas_dataset
-
-
-#qa_dataset, qas_dataset = get_question_answer_dataset()
-#print(qa_dataset)
-#print(qas_dataset)
+    qas_and_dataset = []
+    for i, row in enumerate(truthfulqa["validation"]):
+        if len(row["correct_answers"]) < 2:
+            continue
+        take_correct = i%2==0
+        for label in (True, False):
+            qa_dataset.append(
+                {
+                    "input": qa_t.render(
+                        row,
+                        is_correct_answer=take_correct,
+                        label=label,
+                    ),
+                    "label": label,
+                    "is_correct": take_correct,
+                }
+            )
+            correct_a = row["correct_answers"][0]
+            second_correct_a = row["correct_answers"][1]
+            incorrect_a = row["incorrect_answers"][0]
+            qas_and_dataset.append(
+                {
+                    "input": qas_t.render(
+                        row,
+                        a_A=correct_a if take_correct else incorrect_a,
+                        a_B=second_correct_a,
+                        is_disjunction=False,
+                        label=label,
+                    ),
+                    "label": label,
+                    "is_correct": take_correct,
+                }
+            )
+    return qa_dataset, qas_and_dataset
 
 
 # %%

@@ -1,16 +1,15 @@
 channels:
+  - r
   - nvidia
   - pytorch
-  - conda-forge
-  - r
   - defaults
 dependencies:
-  - httpcore
-  - sniffio
-  - einops
+  - conda-forge::accelerate
   - conda-forge::datasets
+  - conda-forge::tokenizers >= 0.13.3
   - conda-forge::transformers
-  - conda-forge::tokenizers>=0.13.3
+  - einops
+  - httpcore
   - ipykernel
   - ipywidgets
   - jaxtyping
@@ -19,17 +18,13 @@ dependencies:
   - protobuf
   - pynvml
   - python==3.10
+  - pytorch-cuda 
   - pytorch::pytorch
-  - pytorch-cuda
+  - pytorch::torchaudio
+  - pytorch::torchvision
   - scikit-learn
   - sentencepiece
   - simple-parsing
-  - torchaudio
-  - torchvision 
+  - sniffio
   - tqdm
   - git
-  - pip
-  - pip:
-    - circuitsvis
-    - transformer-lens
-    - -e lib/elk
