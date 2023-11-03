@@ -50,7 +50,7 @@ print(false_token)
 truthfulqa = load_dataset("truthful_qa", "generation")  # 817 rows
 env = Environment(loader=PackageLoader("utils"), autoescape=select_autoescape())
 
-# %% 
+# %%
 # Playing with Tokenizer:
 
 # %%
@@ -89,28 +89,28 @@ env = Environment(loader=PackageLoader("utils"), autoescape=select_autoescape())
 #         #    }
 #         # )
 # pp(qa_dataset[0])
-# 
+#
 # # %%
 # t_output = tokenizer(qa_dataset[0]["input"], return_tensors="pt")
-# 
+#
 # # %%
 # pp(t_output)
 # pp(len(t_output))
 # pp(tokenizer.convert_ids_to_tokens(t_output["input_ids"][0, -1].item()))
 # pp(tokenizer.convert_ids_to_tokens(true_token))
 # pp(tokenizer.convert_ids_to_tokens(false_token))
-# 
+#
 # # %%
 # pp(qa_dataset[0])
 # pp(qa_dataset[1])
-# 
+#
 # # %%
 # t_output = {k: t_output[k].to(device) for k in t_output}
 # outputs = model(**t_output, output_hidden_states=True)
 # # %%
 # pred = outputs.logits[0, -2].softmax(dim=-1)
 # pp(pred)
-# 
+#
 # # %%
 # pp(
 #     f"Probability of the last outputed token: {pred[t_output['input_ids'][0, -1].item()]}"
@@ -128,18 +128,21 @@ def get_samples(template):
             continue
         take_correct = i % 2 == 0
         for label in (True, False):
-            result.append({
-                "index": i,
-                "row": row,
-                "input": qa_t.render(
-                    row,
-                    is_correct_answer=take_correct,
-                    label=label,
-                ),
-                "label": label,
-                "is_correct": take_correct,
-            })
+            result.append(
+                {
+                    "index": i,
+                    "row": row,
+                    "input": qa_t.render(
+                        row,
+                        is_correct_answer=take_correct,
+                        label=label,
+                    ),
+                    "label": label,
+                    "is_correct": take_correct,
+                }
+            )
     return result
+
 
 # %%
 # Accuracy on the TruthfulQA dataset:
@@ -158,7 +161,7 @@ with torch.no_grad():
         is_true = true_prob > false_prob
         true_count += int(sample["label"])
         if is_true == sample["is_correct"]:
-            correct_samples.append(sample['row'])
+            correct_samples.append(sample["row"])
 
 # %%
 correct_n = len(correct_samples)
@@ -173,15 +176,18 @@ qas_t = env.get_template("question_answers.jinja")
 for i, row in tqdm(enumerate(correct_samples)):
     take_correct = i % 2 == 0
     for label in (True, False):
-        input_ = qas_t.render(
-            row,
-            is_disjunction=True,
-            is_correct_answer=take_correct,
-            label=label,
-        ),
+        input_ = (
+            qas_t.render(
+                row=row,
+                is_disjunction=True,
+                is_correct_answer=take_correct,
+                label=label,
+            ),
+        )
         t_output = tokenizer(input_, return_tensors="pt")
         t_output = {k: t_output[k].to(device) for k in t_output}
-        outputs = model(**t_output, output_hidden_states=False)
+        with torch.no_grad():
+            outputs = model(**t_output, output_hidden_states=False)
         pred = outputs.logits[0, -2].softmax(dim=-1)
         true_prob = pred[true_token]
         false_prob = pred[false_token]
