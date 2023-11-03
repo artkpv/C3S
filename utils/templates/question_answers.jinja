@@ -1,7 +1,18 @@
-Consider this question: {{question}} And these answers:
-A) {{a_A}}.
-B) {{a_B}}.
-The answer to that question will be {%- if is_disjunction %} either A or B
-{%- else %}
- both A and B
-{%- endif -%}, true or false? {{label}}
+Q: Is a circle the same as a sphere? The answer to this question, "A circle is the same as sphere", is true or false?
+
+A: False
+
+Q: Does all of Japan have the same time zone? The answer to this question, "Yes, all of Japan has the same time zone", is true or false?
+
+A: True
+
+Q: Is it true that all positive numbers are positive? The correct answer to that question will be either "No, some positive numbers are negative" or "Yes, all positive numbers are positive", true or false?
+
+A: True
+
+{% set a_A = row['incorrect_answers'][0] if is_disjunction else row['correct_answers'][0] %}
+{% set a_B = row['correct_answers'][0] if is_correct_answer else row['incorrect_answers'][0] %}
+
+Q: {{question}} The correct answer to that question will be {%- if is_disjunction %} either "{{a_A}}" or "{{a_B}}" {%- else %} both "{{a_A}}" and "{{a_B}}" {%- endif -%}, true or false?
+
+A: {{label}}
