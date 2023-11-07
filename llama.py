@@ -120,48 +120,36 @@ env = Environment(loader=PackageLoader("utils"), autoescape=select_autoescape())
 
 
 # %%
-def get_samples(template):
-    qa_t = env.get_template(template)
-    result = []
-    for i, row in enumerate(truthfulqa["validation"]):
+# Accuracy on the TruthfulQA dataset:
+count = 0
+true_label_count = 0
+correct_samples = []
+qa_t = env.get_template("question_answer.jinja")
+with torch.no_grad():
+    for i, row in tqdm(enumerate(truthfulqa["validation"])):
         if len(row["correct_answers"]) < 2:
             continue
         take_correct = i % 2 == 0
+        both_true = True
         for label in (True, False):
-            result.append(
-                {
-                    "index": i,
-                    "row": row,
-                    "input": qa_t.render(
-                        row,
-                        is_correct_answer=take_correct,
-                        label=label,
-                    ),
-                    "label": label,
-                    "is_correct": take_correct,
-                }
-            )
-    return result
-
-
-# %%
-# Accuracy on the TruthfulQA dataset:
-count = 0
-true_count = 0
-correct_samples = []
-with torch.no_grad():
-    for sample in tqdm(get_samples("question_answer.jinja")[:1000]):
-        count += 1
-        t_output = tokenizer(sample["input"], return_tensors="pt")
-        t_output = {k: t_output[k].to(device) for k in t_output}
-        outputs = model(**t_output, output_hidden_states=False)
-        pred = outputs.logits[0, -2].softmax(dim=-1)
-        true_prob = pred[true_token]
-        false_prob = pred[false_token]
-        is_true = true_prob > false_prob
-        true_count += int(sample["label"])
-        if is_true == sample["is_correct"]:
-            correct_samples.append(sample["row"])
+            input_ = qa_t.render(
+                row,
+                is_correct_answer=take_correct,
+                label=label,
+            ),
+            t_output = tokenizer(input_, return_tensors="pt")
+            t_output = {k: t_output[k].to(device) for k in t_output}
+            outputs = model(**t_output, output_hidden_states=False)
+            pred = outputs.logits[0, -2].softmax(dim=-1)
+            true_prob = pred[true_token]
+            false_prob = pred[false_token]
+            is_true = true_prob > false_prob
+            true_label_count += int(label)
+            if is_true == take_correct:
+                both_true = both_true and True
+            count += 1
+        if both_true:
+            correct_samples.append(row)
 
 # %%
 correct_n = len(correct_samples)
