@@ -120,73 +120,76 @@ env = Environment(loader=PackageLoader("utils"), autoescape=select_autoescape())
 
 
 # %%
-# Accuracy on the TruthfulQA dataset:
+# Accuracy on the TruthfulQA dataset, few shot:
 count = 0
-true_label_count = 0
 correct_samples = []
+correct_n = 0
 qa_t = env.get_template("question_answer.jinja")
 with torch.no_grad():
-    for i, row in tqdm(enumerate(truthfulqa["validation"])):
-        if len(row["correct_answers"]) < 2:
-            continue
-        take_correct = i % 2 == 0
-        both_true = True
-        for label in (True, False):
+    p_bar = tqdm(list(enumerate(truthfulqa["validation"])))
+    for i, row in p_bar:
+        def is_correct_answer(take_correct):
             input_ = qa_t.render(
                 row,
-                is_correct_answer=take_correct,
-                label=label,
+                is_correct_answer=take_correct
             ),
             t_output = tokenizer(input_, return_tensors="pt")
             t_output = {k: t_output[k].to(device) for k in t_output}
             outputs = model(**t_output, output_hidden_states=False)
-            pred = outputs.logits[0, -2].softmax(dim=-1)
-            true_prob = pred[true_token]
-            false_prob = pred[false_token]
-            is_true = true_prob > false_prob
-            true_label_count += int(label)
-            if is_true == take_correct:
-                both_true = both_true and True
-            count += 1
-        if both_true:
+            pred = outputs.logits[0, -1].softmax(dim=-1)
+            predicted = (pred[true_token] > pred[false_token]).item()
+            return predicted == take_correct
+        with_true = is_correct_answer(True)
+        count += 1
+        if with_true:
+            correct_n += 1
+        with_false = is_correct_answer(False)
+        count += 1
+        if with_false:
+            correct_n += 1
+        if with_true and with_false:
             correct_samples.append(row)
-
-# %%
-correct_n = len(correct_samples)
-print(
-    f"Correct {correct_n}, count {count}, accuracy {correct_n / count:.4}, true label count {true_count}"
-)
-
-# %%
-# Calculate accuracy for correctly detectedly samples.
-qas_correct_samples = []
-qas_t = env.get_template("question_answers.jinja")
-for i, row in tqdm(enumerate(correct_samples)):
-    take_correct = i % 2 == 0
-    for label in (True, False):
-        input_ = (
-            qas_t.render(
-                row=row,
-                is_disjunction=True,
-                is_correct_answer=take_correct,
-                label=label,
-            ),
+        p_bar.set_description(
+            f"Correct {correct_n}, count {count}, accuracy {correct_n / count:.4}, both {len(correct_samples)}"
         )
-        t_output = tokenizer(input_, return_tensors="pt")
-        t_output = {k: t_output[k].to(device) for k in t_output}
-        with torch.no_grad():
+# Result: Correct 972, count 1634, accuracy 0.5949, both 261
+
+# %%
+# Now calculate accuracy for compound sentences for correctly 
+# detected samples. Expectation: should guess all correctly.
+
+count = 0
+correct_compound = []
+correct_n = 0
+qas_t = env.get_template("question_answers.jinja")
+with torch.no_grad():
+    p_bar = tqdm(list(enumerate(correct_samples)))
+    for i, row in p_bar:
+        def is_correct_answer(take_correct):
+            input_ = qas_t.render(
+                row,
+                is_correct_answer=take_correct,
+                is_disjunction=False,
+            ),
+            t_output = tokenizer(input_, return_tensors="pt")
+            t_output = {k: t_output[k].to(device) for k in t_output}
             outputs = model(**t_output, output_hidden_states=False)
-        pred = outputs.logits[0, -2].softmax(dim=-1)
-        true_prob = pred[true_token]
-        false_prob = pred[false_token]
-        is_true = true_prob > false_prob
-        true_count += int(label)
-        if is_true == take_correct:
-            qas_correct_samples.append((row, input_))
+            pred = outputs.logits[0, -1].softmax(dim=-1)
+            predicted = (pred[true_token] > pred[false_token]).item()
+            return predicted == take_correct
+        with_true = is_correct_answer(True)
+        count += 1
+        if with_true:
+            correct_n += 1
+        with_false = is_correct_answer(False)
+        count += 1
+        if with_false:
+            correct_n += 1
+        if with_true and with_false:
+            correct_compound.append(row)
+        p_bar.set_description(
+            f"Correct {correct_n}, count {count}, accuracy {correct_n / count:.4}, both {len(correct_compound)}"
+        )
 
-correct_n = len(qas_correct_samples)
-print(
-    f"Correct {correct_n}, count {count}, accuracy {correct_n / count:.4}, true label count {true_count}"
-)
-
+# Random? Correct 289, count 522, accuracy 0.5536, both 48: 100%|██████████| 261/261 [00:44<00:00,  5.84it/s]
 # %%
