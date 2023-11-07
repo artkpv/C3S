@@ -176,6 +176,8 @@ with torch.no_grad():
             outputs = model(**t_output, output_hidden_states=False)
             pred = outputs.logits[0, -1].softmax(dim=-1)
             predicted = (pred[true_token] > pred[false_token]).item()
+            print(input_[0])
+            input()
             return predicted == take_correct
         with_true = is_correct_answer(True)
         count += 1
