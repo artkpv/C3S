@@ -531,6 +531,7 @@ def visualize_attention_patterns(
     # Return the visualisation as raw code
     return f"<div style='max-width: {str(max_width)}px;'>{title_html + plot}</div>"
 
+#%%
 """Inspecting the patterns, we can see that both types of name movers attend to the indirect object - this suggests they're simply copying the name attended to (with the OV circuit) and that the interesting part is the circuit behind the attention pattern that calculates *where* to move information from (the QK circuit)"""
 
 top_k = 3
@@ -559,6 +560,7 @@ negative_html = visualize_attention_patterns(
 
 HTML(positive_html + negative_html)
 
+#%%
 """## Activation Patching
 
 **This section explains how to do activation patching conceptually by implementing it from scratch. To use it in practice with TransformerLens, see [this demonstration instead](https://colab.research.google.com/github/neelnanda-io/TransformerLens/blob/main/demos/Activation_Patching_in_TL_Demo.ipynb)**.
@@ -624,6 +626,7 @@ print("Clean Average Logit Diff", round(original_average_logit_diff.item(), 2))
 
 model.to_string(corrupted_tokens)
 
+#%%
 """We now intervene on the corrupted run and patch in the clean residual stream at a specific layer and position.
 
 We do the intervention using TransformerLens's `HookPoint` feature. We can design a hook function that takes in a specific activation and returns an edited copy, and temporarily add it in with `model.run_with_hooks`.
@@ -664,6 +667,7 @@ for layer in range(model.cfg.n_layers):
             patched_logit_diff
         )
 
+#%%
 """We can immediately see that, exactly as predicted, originally all relevant computation happens on the second subject token, and at layers 7 and 8, the information is moved to the final token. Moving the residual stream at the correct position near *exactly* recovers performance!
 
 For reference, tokens and their index from the first prompt are on the x-axis. In an abuse of notation, note that the difference here is averaged over *all* 8 prompts, while the labels only come from the *first* prompt.
@@ -682,6 +686,7 @@ imshow(
     labels={"x": "Position", "y": "Layer"},
 )
 
+#%%
 """## Layers
 
 We can apply exactly the same idea, but this time patching in attention or MLP layers. These are also residual components with identical shapes to the residual stream terms, so we can reuse the same hooks.
@@ -729,6 +734,7 @@ imshow(
     labels={"x": "Position", "y": "Layer"},
 )
 
+#%%
 """In contrast, the MLP layers do not matter much. This makes sense, since this is more a task about moving information than about processing it, and the MLP layers specialise in processing information.
 
 The one exception is MLP 0, which matters a lot, but I think this is misleading and just a generally true statement about MLP 0 rather than being about the circuit on this task.
@@ -751,6 +757,7 @@ imshow(
     labels={"x": "Position", "y": "Layer"},
 )
 
+#%%
 """## Heads
 
 We can refine the above analysis by patching in individual heads! This is somewhat more annoying, because there are now three dimensions (head_index, position and layer), so for now lets patch in a head's output across all positions.
@@ -795,6 +802,7 @@ imshow(
     labels={"x": "Head", "y": "Layer"},
 )
 
+#%%
 """## Decomposing Heads
 
 Decomposing attention layers into patching in individual heads has already helped us localise the behaviour a lot. But we can understand it further by decomposing heads. An attention head consists of two semi-independent operations - calculating *where* to move information from and to (represented by the attention pattern and implemented via the QK-circuit) and calculating *what* information to move (represented by the value vectors and implemented by the OV circuit). We can disentangle which of these is important by patching in just the attention pattern *or* the value vectors. (See [A Mathematical Framework](https://transformer-circuits.pub/2021/framework/index.html) or [my walkthrough video](https://www.youtube.com/watch?v=KV5gbOmHbjU) for more on this decomposition. If you're not familiar with the details of how attention is implemented, I recommend checking out [my clean transformer implementation](https://colab.research.google.com/github/neelnanda-io/TransformerLens/blob/clean-transformer-demo/Clean_Transformer_Demo.ipynb#scrollTo=3Pb0NYbZ900e) to see how the code works))
@@ -827,6 +835,7 @@ imshow(
     labels={"x": "Head", "y": "Layer"},
 )
 
+#%%
 """But it's very easy to interpret if we plot a scatter plot against patching head outputs. Here we see that the earlier heads (L5H5, L6H9, L3H0) and late name movers (L9H9, L10H7, L11H10) don't matter at all now, while the mid-late heads (L8H6, L8H10, L7H9) do.
 
 Meta lesson: Plot things early, often and in diverse ways as you explore a model's internals!
@@ -850,6 +859,7 @@ scatter(
     title="Scatter plot of output patching vs value patching",
 )
 
+#%%
 """When we patch in attention patterns, we see the opposite effect - early and late heads matter a lot, middle heads don't. (In fact, the sum of value patching and pattern patching is approx the same as output patching)"""
 
 def patch_head_pattern(
@@ -898,6 +908,7 @@ scatter(
     title="Scatter plot of output patching vs attention patching",
 )
 
+#%%
 """## Consolidating Understanding
 
 OK, let's zoom out and reconsolidate. At a high-level, we find that all the action is on the second subject token until layer 7 and then transitions to the final token. And that attention layers matter a lot, MLP layers not so much (apart from MLP0, likely as an extended embedding).
@@ -944,6 +955,7 @@ late = visualize_attention_patterns(
 
 HTML(early + mid + late)
 
+#%%
 """### Comparing to the Paper
 
 We can now refer to the (far, far more rigorous and detailed) analysis in the paper to compare our results! Here's the diagram they give of their results.
@@ -1001,6 +1013,7 @@ code = visualize_attention_patterns(
 )
 HTML(code)
 
+#%%
 """#### Implications
 
 One implication of this is that it's useful to categories heads according to whether they occur in
@@ -1112,6 +1125,7 @@ print(torch.round(utils.get_corner(prev_token_scores).detach().cpu(), decimals=3
 print(torch.round(utils.get_corner(duplicate_token_scores).detach().cpu(), decimals=3))
 print(torch.round(utils.get_corner(induction_scores).detach().cpu(), decimals=3))
 
+#%%
 """We can now plot the head scores, and instantly see that the relevant early heads are induction heads or duplicate token heads (though also that there's a lot of induction heads that are *not* use - I have no idea why!)."""
 
 imshow(
@@ -1126,6 +1140,7 @@ imshow(
     induction_scores, labels={"x": "Head", "y": "Layer"}, title="Induction Head Scores"
 )
 
+#%%
 """The above suggests that it would be a useful bit of infrastructure to have a "wiki" for the heads of a model, giving their scores according to some metrics re head functions, like the ones we've seen here. TransformerLens makes this easy to make, as just changing the name input to `HookedTransformer.from_pretrained` gives a different model but in the same architecture, so the same code should work. If you want to make this, I'd love to see it!
 
 As a proof of concept, [I made a mosaic of all induction heads across the 40 models then in TransformerLens](https://www.neelnanda.io/mosaic).
@@ -1153,6 +1168,7 @@ top_name_mover_head = top_name_mover % model.cfg.n_heads
 print(f"Top Name Mover to ablate: L{top_name_mover_layer}H{top_name_mover_head}")
 
 
+#%%
 def ablate_top_head_hook(z: Float[torch.Tensor, "batch pos head_index d_head"], hook):
     z[:, -1, top_name_mover_head, :] = 0
     return z
@@ -1173,6 +1189,7 @@ print(
     f"Naive prediction of post ablation logit diff: {original_average_logit_diff - per_head_logit_diffs.flatten()[top_name_mover].item():.2f}"
 )
 
+#%%
 """So what's up with this? As before, we can look at the direct logit attribution of each head to see what's going on. It's easiest to interpret if plotted as a scatter plot against the initial per head logit difference.
 
 And we can see a *really* big difference in a few heads! (Hover to see labels) In particular the negative name mover L10H7 decreases its negative effect a lot, adding +1 to the logit diff, and the backup name mover L10H10 adjusts its effect to be more positive, adding +0.8 to the logit diff (with several other marginal changes). (And obviously the ablated head has gone down to zero!)
@@ -1199,6 +1216,7 @@ scatter(
     title="Original vs Post-Ablation Direct Logit Attribution of Heads",
 )
 
+#%%
 """One natural hypothesis is that this is because the final LayerNorm scaling has changed, which can scale up or down the final residual stream. This is slightly true, and we can see that the typical head is a bit off from the x=y line. But the average LN scaling ratio is 1.04, and this should uniformly change *all* heads by the same factor, so this can't be sufficient"""
 
 print(
@@ -1222,4 +1240,5 @@ print(
     cache["ln_final.hook_scale"][:, -1].detach().cpu().round(decimals=2),
 )
 
+#%%
 """**Exercise to the reader:** Can you finish off this analysis? What's going on here? Why are the backup name movers changing their behaviour? Why is one negative name mover becoming significantly less important?"""
