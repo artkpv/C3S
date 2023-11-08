@@ -18,7 +18,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import transformers
-
+from sklearn.linear_model import LogisticRegression
 login()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -215,17 +215,16 @@ def get_hidden_states(model, tokenizer, input_text, layer=-1):
 
     return hs
 
-def format_imdb(text, label):
-    """
-    Given an imdb example ("text") and corresponding label (0 for negative, or 1 for positive), 
-    returns a zero-shot prompt for that example (which includes that label as the answer).
-    
-    (This is just one example of a simple, manually created prompt.)
-    """
-    return "The following movie review expresses a " + ["negative", "positive"][label] + " sentiment:\n" + text
+def format_row(row, label, true_label):
+    qa_t = env.get_template("question_answer.jinja")
+    return qa_t.render(
+        row,
+        is_correct_answer=true_label,
+        label=label,
+    )
 
 
-def get_hidden_states_many_examples(model, tokenizer, data, model_type, n=100):
+def get_hidden_states_many_examples(model, tokenizer, data, n=100):
     """
     Given an encoder-decoder model, a list of data, computes the contrast hidden states on n random examples.
     Returns numpy arrays of shape (n, hidden_dim) for each candidate label, along with a boolean numpy array of shape (n,)
@@ -238,19 +237,11 @@ def get_hidden_states_many_examples(model, tokenizer, data, model_type, n=100):
     all_neg_hs, all_pos_hs, all_gt_labels = [], [], []
 
     # loop
-    for _ in tqdm(range(n)):
-        # for simplicity, sample a random example until we find one that's a reasonable length
-        # (most examples should be a reasonable length, so this is just to make sure)
-        while True:
-            idx = np.random.randint(len(data))
-            text, true_label = data[idx]["content"], data[idx]["label"]
-            # the actual formatted input will be longer, so include a bit of a marign
-            if len(tokenizer(text)) < 400:  
-                break
-                
+    for i in tqdm(range(n)):
+        true_label = i % 2 == 0
         # get hidden states
-        neg_hs = get_hidden_states(model, tokenizer, format_imdb(text, 0), model_type=model_type)
-        pos_hs = get_hidden_states(model, tokenizer, format_imdb(text, 1), model_type=model_type)
+        neg_hs = get_hidden_states(model, tokenizer, format_row(data[i], True, true_label))
+        pos_hs = get_hidden_states(model, tokenizer, format_row(data[i], False, true_label))
 
         # collect
         all_neg_hs.append(neg_hs)
@@ -264,4 +255,163 @@ def get_hidden_states_many_examples(model, tokenizer, data, model_type, n=100):
     return all_neg_hs, all_pos_hs, all_gt_labels
 
 # %%
-neg_hs, pos_hs, y = get_hidden_states_many_examples(model, tokenizer, data, model_type)
+neg_hs, pos_hs, y = get_hidden_states_many_examples(model, tokenizer, truthfulqa["validation"])
+
+# %%
+# let's create a simple 50/50 train split (the data is already randomized)
+n = len(y)
+neg_hs_train, neg_hs_test = neg_hs[:n//2], neg_hs[n//2:]
+pos_hs_train, pos_hs_test = pos_hs[:n//2], pos_hs[n//2:]
+y_train, y_test = y[:n//2], y[n//2:]
+
+# for simplicity we can just take the difference between positive and negative hidden states
+# (concatenating also works fine)
+x_train = neg_hs_train - pos_hs_train
+x_test = neg_hs_test - pos_hs_test
+
+lr = LogisticRegression(class_weight="balanced")
+lr.fit(x_train, y_train)
+print("Logistic regression accuracy: {}".format(lr.score(x_test, y_test)))
+
+# %%
+class MLPProbe(nn.Module):
+    def __init__(self, d):
+        super().__init__()
+        self.linear1 = nn.Linear(d, 100)
+        self.linear2 = nn.Linear(100, 1)
+
+    def forward(self, x):
+        h = F.relu(self.linear1(x))
+        o = self.linear2(h)
+        return torch.sigmoid(o)
+
+class CCS(object):
+    def __init__(self, x0, x1, nepochs=1000, ntries=10, lr=1e-3, batch_size=-1, 
+                 verbose=False, device="cuda", linear=True, weight_decay=0.01, var_normalize=False):
+        # data
+        self.var_normalize = var_normalize
+        self.x0 = self.normalize(x0)
+        self.x1 = self.normalize(x1)
+        self.d = self.x0.shape[-1]
+
+        # training
+        self.nepochs = nepochs
+        self.ntries = ntries
+        self.lr = lr
+        self.verbose = verbose
+        self.device = device
+        self.batch_size = batch_size
+        self.weight_decay = weight_decay
+        
+        # probe
+        self.linear = linear
+        self.initialize_probe()
+        self.best_probe = copy.deepcopy(self.probe)
+
+        
+    def initialize_probe(self):
+        if self.linear:
+            self.probe = nn.Sequential(nn.Linear(self.d, 1), nn.Sigmoid())
+        else:
+            self.probe = MLPProbe(self.d)
+        self.probe.to(self.device)    
+
+
+    def normalize(self, x):
+        """
+        Mean-normalizes the data x (of shape (n, d))
+        If self.var_normalize, also divides by the standard deviation
+        """
+        normalized_x = x - x.mean(axis=0, keepdims=True)
+        if self.var_normalize:
+            normalized_x /= normalized_x.std(axis=0, keepdims=True)
+
+        return normalized_x
+
+        
+    def get_tensor_data(self):
+        """
+        Returns x0, x1 as appropriate tensors (rather than np arrays)
+        """
+        x0 = torch.tensor(self.x0, dtype=torch.float, requires_grad=False, device=self.device)
+        x1 = torch.tensor(self.x1, dtype=torch.float, requires_grad=False, device=self.device)
+        return x0, x1
+    
+
+    def get_loss(self, p0, p1):
+        """
+        Returns the CCS loss for two probabilities each of shape (n,1) or (n,)
+        """
+        informative_loss = (torch.min(p0, p1)**2).mean(0)
+        consistent_loss = ((p0 - (1-p1))**2).mean(0)
+        return informative_loss + consistent_loss
+
+
+    def get_acc(self, x0_test, x1_test, y_test):
+        """
+        Computes accuracy for the current parameters on the given test inputs
+        """
+        x0 = torch.tensor(self.normalize(x0_test), dtype=torch.float, requires_grad=False, device=self.device)
+        x1 = torch.tensor(self.normalize(x1_test), dtype=torch.float, requires_grad=False, device=self.device)
+        with torch.no_grad():
+            p0, p1 = self.best_probe(x0), self.best_probe(x1)
+        avg_confidence = 0.5*(p0 + (1-p1))
+        predictions = (avg_confidence.detach().cpu().numpy() < 0.5).astype(int)[:, 0]
+        acc = (predictions == y_test).mean()
+        acc = max(acc, 1 - acc)
+
+        return acc
+    
+        
+    def train(self):
+        """
+        Does a single training run of nepochs epochs
+        """
+        x0, x1 = self.get_tensor_data()
+        permutation = torch.randperm(len(x0))
+        x0, x1 = x0[permutation], x1[permutation]
+        
+        # set up optimizer
+        optimizer = torch.optim.AdamW(self.probe.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        
+        batch_size = len(x0) if self.batch_size == -1 else self.batch_size
+        nbatches = len(x0) // batch_size
+
+        # Start training (full batch)
+        for epoch in range(self.nepochs):
+            for j in range(nbatches):
+                x0_batch = x0[j*batch_size:(j+1)*batch_size]
+                x1_batch = x1[j*batch_size:(j+1)*batch_size]
+            
+                # probe
+                p0, p1 = self.probe(x0_batch), self.probe(x1_batch)
+
+                # get the corresponding loss
+                loss = self.get_loss(p0, p1)
+
+                # update the parameters
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+        return loss.detach().cpu().item()
+    
+    def repeated_train(self):
+        best_loss = np.inf
+        for train_num in range(self.ntries):
+            self.initialize_probe()
+            loss = self.train()
+            if loss < best_loss:
+                self.best_probe = copy.deepcopy(self.probe)
+                best_loss = loss
+
+        return best_loss
+# %%
+# Train CCS without any labels
+ccs = CCS(neg_hs_train, pos_hs_train)
+ccs.repeated_train()
+
+# Evaluate
+ccs_acc = ccs.get_acc(neg_hs_test, pos_hs_test, y_test)
+print("CCS accuracy: {}".format(ccs_acc))
+# %%
