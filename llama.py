@@ -19,6 +19,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import transformers
 from sklearn.linear_model import LogisticRegression
+
+import transformer_lens.utils as utils
+from transformer_lens import ActivationCache, HookedTransformer
 login()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -28,18 +31,36 @@ model_type = torch.float16
 
 # %%
 # Load model
-# llama_path = "../llama/7bf_converted/"
-tokenizer = LlamaTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
+tokenizer = LlamaTokenizer.from_pretrained(
+    "meta-llama/Llama-2-7b-chat-hf",
+    #device_map=device,
+    )
 tokenizer.add_special_tokens({"pad_token": "<pad>"})
 # tokenizer.pad_token = tokenizer.eos_token
 
-model = LlamaForCausalLM.from_pretrained(
+hf_model = LlamaForCausalLM.from_pretrained(
     "meta-llama/Llama-2-7b-chat-hf",
-    torch_dtype=model_type,
-    device_map=device,
+    #torch_dtype=model_type,
+    #device_map=device,
+    low_cpu_mem_usage=True,
 )
+
+model = HookedTransformer.from_pretrained(
+    "meta-llama/Llama-2-7b-chat-hf",
+    hf_model=hf_model, 
+    device="cpu", 
+    fold_ln=False, 
+    center_writing_weights=False,
+    center_unembed=False, 
+    tokenizer=tokenizer,
+    dtype=model_type,
+    use_attn_result=True,
+    use_split_qkv_input=True,
+)
+model = model.to(device)
 model.eval()
 pp(model)
+model.generate("The capital of Germany is", max_new_tokens=20, temperature=0)
 # %%
 true_token = tokenizer.encode("True")[1]
 false_token = tokenizer.encode("False")[1]
