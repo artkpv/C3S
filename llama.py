@@ -296,12 +296,25 @@ calc_LR_accuracy(
 )
 
 # %%
+def normalize(x):
+    return (x - x.mean(axis=0, keepdims=True)) / x.std(axis=0, keepdims=True)
+
+
+# %%
 # Random probe
-
-
 def calc_random_probe_accuracy(x_train, y_train, x_test, y_test):
-    lr = LogisticRegression(class_weight="balanced")
-    print("Logistic regression accuracy: {}".format(lr.score(x_test, y_test)))
+    random_p = nn.Sequential(nn.Linear(x_test.shape[-1], 1), nn.Sigmoid())
+
+    x_test_n = torch.tensor(
+        normalize(x_test),
+        dtype=torch.float,
+        requires_grad=False,
+        device="cpu",
+    )
+    with torch.no_grad():
+        predictions = random_p(x_test_n)
+    acc = (predictions == y_test).mean()
+    print(f"Random accuracy: {acc}")
 
 
 print("One statement")
