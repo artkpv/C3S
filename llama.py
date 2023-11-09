@@ -52,13 +52,16 @@ pp(model)
 pp(model.config)
 # %%
 with torch.no_grad():
-    pp(tokenizer.batch_decode(
-        model.generate(
-            tokenizer("The capital of Russia is", return_tensors="pt")
-            .input_ids.to( device),
-            max_length=20,
-        )
-    )[0])
+    pp(
+        tokenizer.batch_decode(
+            model.generate(
+                tokenizer("The capital of Russia is", return_tensors="pt").input_ids.to(
+                    device
+                ),
+                max_length=20,
+            )
+        )[0]
+    )
 
 # %%
 true_token = tokenizer.encode("True")[1]
@@ -110,6 +113,7 @@ with torch.no_grad():
 # Accuracy for disjunction / conjunction sentences for correctly
 # detected samples. Few shot.
 
+
 def calc_accuracy_for(is_disjunction):
     count = 0
     correct_compound = []
@@ -124,7 +128,7 @@ def calc_accuracy_for(is_disjunction):
                     row,
                     is_correct_answer=take_correct,
                     is_disjunction=is_disjunction,
-                    label=""
+                    label="",
                 )
                 t_output = tokenizer(input_, return_tensors="pt")
                 t_output = {k: t_output[k].to(device) for k in t_output}
@@ -147,6 +151,7 @@ def calc_accuracy_for(is_disjunction):
                 f"Correct {correct_n}, count {count}, accuracy {correct_n / count:.4}, both {len(correct_compound)}"
             )
 
+
 # %%
 calc_accuracy_for(True)
 # Disjunction (OR):
@@ -158,9 +163,9 @@ calc_accuracy_for(False)
 # Correct 289, count 522, accuracy 0.5536, both 48: 100%|██████████| 261/261 [00:44<00:00,  5.84it/s]
 
 
-
 # %%
 # Training LR, CCS probes
+
 
 def get_hidden_states(model, tokenizer, input_text, layer=-1):
     """
@@ -192,11 +197,18 @@ def format_row(row, label, true_label, template, is_disjunction):
         row,
         is_correct_answer=true_label,
         label=str(label),
-        is_disjunction=is_disjunction
+        is_disjunction=is_disjunction,
     )
 
 
-def get_hidden_states_many_examples(model, tokenizer, data, n=100, template="question_answer.jinja", is_disjunction=False):
+def get_hidden_states_many_examples(
+    model,
+    tokenizer,
+    data,
+    n=100,
+    template="question_answer.jinja",
+    is_disjunction=False,
+):
     """
     Given an encoder-decoder model, a list of data, computes the contrast hidden states on n random examples.
     Returns numpy arrays of shape (n, hidden_dim) for each candidate label, along with a boolean numpy array of shape (n,)
@@ -213,10 +225,14 @@ def get_hidden_states_many_examples(model, tokenizer, data, n=100, template="que
         true_label = i % 2 == 0
         # get hidden states
         neg_hs = get_hidden_states(
-            model, tokenizer, format_row(data[i], True, true_label, template, is_disjunction)
+            model,
+            tokenizer,
+            format_row(data[i], True, true_label, template, is_disjunction),
         )
         pos_hs = get_hidden_states(
-            model, tokenizer, format_row(data[i], False, true_label, template, is_disjunction)
+            model,
+            tokenizer,
+            format_row(data[i], False, true_label, template, is_disjunction),
         )
 
         # collect
@@ -231,21 +247,27 @@ def get_hidden_states_many_examples(model, tokenizer, data, n=100, template="que
     return all_neg_hs, all_pos_hs, all_gt_labels
 
 
-# %% 
+# %%
 def get_hs_dataset(n=800, template="question_answer.jinja", is_disjunction=False):
     neg_hs, pos_hs, y = get_hidden_states_many_examples(
-        model, tokenizer, truthfulqa["validation"], n=n, template=template, is_disjunction=is_disjunction
+        model,
+        tokenizer,
+        truthfulqa["validation"],
+        n=n,
+        template=template,
+        is_disjunction=is_disjunction,
     )
     n = len(y)
-    train_num = int(n * 0.8) 
+    train_num = int(n * 0.8)
     test_num = n - train_num
 
-    neg_hs_train, neg_hs_test = neg_hs[: train_num], neg_hs[train_num :]
-    pos_hs_train, pos_hs_test = pos_hs[: train_num], pos_hs[train_num :]
-    y_train, y_test = y[: train_num], y[train_num :]
+    neg_hs_train, neg_hs_test = neg_hs[:train_num], neg_hs[train_num:]
+    pos_hs_train, pos_hs_test = pos_hs[:train_num], pos_hs[train_num:]
+    y_train, y_test = y[:train_num], y[train_num:]
     x_train = neg_hs_train - pos_hs_train
     x_test = neg_hs_test - pos_hs_test
     return x_train, y_train, x_test, y_test
+
 
 # %%
 # Logigictic regression accuracy
@@ -255,34 +277,46 @@ def calc_LR_accuracy(x_train, y_train, x_test, y_test):
     lr.save("lr.joblib")
     print("Logistic regression accuracy: {}".format(lr.score(x_test, y_test)))
 
-# %% 
+
+# %%
 print("One statement")
 calc_LR_accuracy(*get_hs_dataset())
 # Logistic regression accuracy: 0.8375
 
 # %%
 print("Disjunction statement")
-calc_LR_accuracy(*get_hs_dataset(template="question_answers.jinja", is_disjunction=True,n=500))
+calc_LR_accuracy(
+    *get_hs_dataset(template="question_answers.jinja", is_disjunction=True, n=500)
+)
 
 # %%
 print("Conjunction statement")
-calc_LR_accuracy(*get_hs_dataset(template="question_answers.jinja", is_disjunction=False,n=500))
+calc_LR_accuracy(
+    *get_hs_dataset(template="question_answers.jinja", is_disjunction=False, n=500)
+)
 
-# %% 
+# %%
 # Random probe
+
 
 def calc_random_probe_accuracy(x_train, y_train, x_test, y_test):
     lr = LogisticRegression(class_weight="balanced")
     print("Logistic regression accuracy: {}".format(lr.score(x_test, y_test)))
 
+
 print("One statement")
 calc_random_probe_accuracy(*get_hs_dataset(n=100))
 
 print("Disjunction statement")
-calc_random_probe_accuracy(*get_hs_dataset(template="question_answers.jinja", is_disjunction=True, n=100))
+calc_random_probe_accuracy(
+    *get_hs_dataset(template="question_answers.jinja", is_disjunction=True, n=100)
+)
 
 print("Conjunction statement")
-calc_random_probe_accuracy(*get_hs_dataset(template="question_answers.jinja", is_disjunction=False, n=100))
+calc_random_probe_accuracy(
+    *get_hs_dataset(template="question_answers.jinja", is_disjunction=False, n=100)
+)
+
 
 # %%
 # CCS probe
