@@ -70,77 +70,10 @@ print(false_token)
 truthfulqa = load_dataset("truthful_qa", "generation")  # 817 rows
 env = Environment(loader=PackageLoader("utils"), autoescape=select_autoescape())
 
-# %%
-# Playing with Tokenizer:
 
 # %%
-# qa_t = env.get_template("question_answer.jinja")
-# qa_dataset = []
-# for i, row in enumerate(truthfulqa["validation"]):
-#     if len(row["correct_answers"]) < 2:
-#         continue
-#     take_correct = i % 2 == 0
-#     for label in (True, False):
-#         qa_dataset.append(
-#             {
-#                 "input": qa_t.render(
-#                     row,
-#                     is_correct_answer=take_correct,
-#                     label=label,
-#                 ),
-#                 "label": label,
-#                 "is_correct": take_correct,
-#             }
-#         )
-#         correct_a = row["correct_answers"][0]
-#         second_correct_a = row["correct_answers"][1]
-#         incorrect_a = row["incorrect_answers"][0]
-#         # qas_and_dataset.append(
-#         #    {
-#         #        "input": qas_t.render(
-#         #            row,
-#         #            a_A=correct_a if take_correct else incorrect_a,
-#         #            a_B=second_correct_a,
-#         #            is_disjunction=False,
-#         #            label=label,
-#         #        ),
-#         #        "label": label,
-#         #        "is_correct": take_correct,
-#         #    }
-#         # )
-# pp(qa_dataset[0])
-#
-# # %%
-# t_output = tokenizer(qa_dataset[0]["input"], return_tensors="pt")
-#
-# # %%
-# pp(t_output)
-# pp(len(t_output))
-# pp(tokenizer.convert_ids_to_tokens(t_output["input_ids"][0, -1].item()))
-# pp(tokenizer.convert_ids_to_tokens(true_token))
-# pp(tokenizer.convert_ids_to_tokens(false_token))
-#
-# # %%
-# pp(qa_dataset[0])
-# pp(qa_dataset[1])
-#
-# # %%
-# t_output = {k: t_output[k].to(device) for k in t_output}
-# outputs = model(**t_output, output_hidden_states=True)
-# # %%
-# pred = outputs.logits[0, -2].softmax(dim=-1)
-# pp(pred)
-#
-# # %%
-# pp(
-#     f"Probability of the last outputed token: {pred[t_output['input_ids'][0, -1].item()]}"
-# )
-# pp(f"True token probability: {pred[true_token]}")
-# pp(f"False token probability: {pred[false_token]}")
+# Accuracy on the TruthfulQA dataset, few shot.
 
-
-# %%
-# Accuracy on the TruthfulQA dataset, few shot:
 count = 0
 correct_samples = []
 correct_n = 0
@@ -150,7 +83,7 @@ with torch.no_grad():
     for i, row in p_bar:
 
         def is_correct_answer(take_correct):
-            input_ = qa_t.render(row, is_correct_answer=take_correct)
+            input_ = qa_t.render(row, is_correct_answer=take_correct, label="")
             t_output = tokenizer(input_, return_tensors="pt")
             t_output = {k: t_output[k].to(device) for k in t_output}
             outputs = model(**t_output, output_hidden_states=False)
@@ -174,48 +107,61 @@ with torch.no_grad():
 # Result: Correct 972, count 1634, accuracy 0.5949, both 261
 
 # %%
-# Now calculate accuracy for compound sentences for correctly
-# detected samples. Expectation: should guess all correctly.
+# Accuracy for disjunction / conjunction sentences for correctly
+# detected samples. Few shot.
 
-count = 0
-correct_compound = []
-correct_n = 0
-qas_t = env.get_template("question_answers.jinja")
-with torch.no_grad():
-    p_bar = tqdm(list(enumerate(correct_samples)))
-    for i, row in p_bar:
+def calc_accuracy_for(is_disjunction):
+    count = 0
+    correct_compound = []
+    correct_n = 0
+    qas_t = env.get_template("question_answers.jinja")
+    with torch.no_grad():
+        p_bar = tqdm(list(enumerate(correct_samples)))
+        for i, row in p_bar:
 
-        def is_correct_answer(take_correct):
-            input_ = qas_t.render(
-                row,
-                is_correct_answer=take_correct,
-                is_disjunction=False,
+            def is_correct_answer(take_correct):
+                input_ = qas_t.render(
+                    row,
+                    is_correct_answer=take_correct,
+                    is_disjunction=is_disjunction,
+                    label=""
+                )
+                t_output = tokenizer(input_, return_tensors="pt")
+                t_output = {k: t_output[k].to(device) for k in t_output}
+                outputs = model(**t_output, output_hidden_states=False)
+                pred = outputs.logits[0, -1].softmax(dim=-1)
+                predicted = (pred[true_token] > pred[false_token]).item()
+                return predicted == take_correct
+
+            with_true = is_correct_answer(True)
+            count += 1
+            if with_true:
+                correct_n += 1
+            with_false = is_correct_answer(False)
+            count += 1
+            if with_false:
+                correct_n += 1
+            if with_true and with_false:
+                correct_compound.append(row)
+            p_bar.set_description(
+                f"Correct {correct_n}, count {count}, accuracy {correct_n / count:.4}, both {len(correct_compound)}"
             )
-            t_output = tokenizer(input_, return_tensors="pt")
-            t_output = {k: t_output[k].to(device) for k in t_output}
-            outputs = model(**t_output, output_hidden_states=False)
-            pred = outputs.logits[0, -1].softmax(dim=-1)
-            predicted = (pred[true_token] > pred[false_token]).item()
-            return predicted == take_correct
 
-        with_true = is_correct_answer(True)
-        count += 1
-        if with_true:
-            correct_n += 1
-        with_false = is_correct_answer(False)
-        count += 1
-        if with_false:
-            correct_n += 1
-        if with_true and with_false:
-            correct_compound.append(row)
-        p_bar.set_description(
-            f"Correct {correct_n}, count {count}, accuracy {correct_n / count:.4}, both {len(correct_compound)}"
-        )
+# %%
+calc_accuracy_for(True)
+# Disjunction (OR):
+# Correct 331, count 522, accuracy 0.6341, both 72: 100%|██████████| 261/261 [00:58<00:00,  4.50it/s]
 
-# Random? Correct 289, count 522, accuracy 0.5536, both 48: 100%|██████████| 261/261 [00:44<00:00,  5.84it/s]
+# %%
+calc_accuracy_for(False)
+# Conjunction (AND):
+# Correct 289, count 522, accuracy 0.5536, both 48: 100%|██████████| 261/261 [00:44<00:00,  5.84it/s]
+
 
 
 # %%
+# Training LR, CCS probes
+
 def get_hidden_states(model, tokenizer, input_text, layer=-1):
     """
     Given an encoder model and some text, gets the encoder hidden states (in a given layer, by default the last)
@@ -240,16 +186,17 @@ def get_hidden_states(model, tokenizer, input_text, layer=-1):
     return hs
 
 
-def format_row(row, label, true_label):
-    qa_t = env.get_template("question_answer.jinja")
-    return qa_t.render(
+def format_row(row, label, true_label, template, is_disjunction):
+    env_t = env.get_template(template)
+    return env_t.render(
         row,
         is_correct_answer=true_label,
-        label=label,
+        label=str(label),
+        is_disjunction=is_disjunction
     )
 
 
-def get_hidden_states_many_examples(model, tokenizer, data, n=100):
+def get_hidden_states_many_examples(model, tokenizer, data, n=100, template="question_answer.jinja", is_disjunction=False):
     """
     Given an encoder-decoder model, a list of data, computes the contrast hidden states on n random examples.
     Returns numpy arrays of shape (n, hidden_dim) for each candidate label, along with a boolean numpy array of shape (n,)
@@ -266,10 +213,10 @@ def get_hidden_states_many_examples(model, tokenizer, data, n=100):
         true_label = i % 2 == 0
         # get hidden states
         neg_hs = get_hidden_states(
-            model, tokenizer, format_row(data[i], True, true_label)
+            model, tokenizer, format_row(data[i], True, true_label, template, is_disjunction)
         )
         pos_hs = get_hidden_states(
-            model, tokenizer, format_row(data[i], False, true_label)
+            model, tokenizer, format_row(data[i], False, true_label, template, is_disjunction)
         )
 
         # collect
@@ -284,41 +231,61 @@ def get_hidden_states_many_examples(model, tokenizer, data, n=100):
     return all_neg_hs, all_pos_hs, all_gt_labels
 
 
-# %%
-neg_hs, pos_hs, y = get_hidden_states_many_examples(
-    model, tokenizer, truthfulqa["validation"]
-)
+# %% 
+def get_hs_dataset(n=800, template="question_answer.jinja", is_disjunction=False):
+    neg_hs, pos_hs, y = get_hidden_states_many_examples(
+        model, tokenizer, truthfulqa["validation"], n=n, template=template, is_disjunction=is_disjunction
+    )
+    n = len(y)
+    train_num = int(n * 0.8) 
+    test_num = n - train_num
+
+    neg_hs_train, neg_hs_test = neg_hs[: train_num], neg_hs[train_num :]
+    pos_hs_train, pos_hs_test = pos_hs[: train_num], pos_hs[train_num :]
+    y_train, y_test = y[: train_num], y[train_num :]
+    x_train = neg_hs_train - pos_hs_train
+    x_test = neg_hs_test - pos_hs_test
+    return x_train, y_train, x_test, y_test
 
 # %%
-# let's create a simple 50/50 train split (the data is already randomized)
-n = len(y)
-neg_hs_train, neg_hs_test = neg_hs[: n // 2], neg_hs[n // 2 :]
-pos_hs_train, pos_hs_test = pos_hs[: n // 2], pos_hs[n // 2 :]
-y_train, y_test = y[: n // 2], y[n // 2 :]
+# Logigictic regression accuracy
+def calc_LR_accuracy(x_train, y_train, x_test, y_test):
+    lr = LogisticRegression(class_weight="balanced")
+    lr.fit(x_train, y_train)
+    lr.save("lr.joblib")
+    print("Logistic regression accuracy: {}".format(lr.score(x_test, y_test)))
 
-# for simplicity we can just take the difference between positive and negative hidden states
-# (concatenating also works fine)
-x_train = neg_hs_train - pos_hs_train
-x_test = neg_hs_test - pos_hs_test
-
-lr = LogisticRegression(class_weight="balanced")
-lr.fit(x_train, y_train)
-print("Logistic regression accuracy: {}".format(lr.score(x_test, y_test)))
-
+# %% 
+print("One statement")
+calc_LR_accuracy(*get_hs_dataset())
+# Logistic regression accuracy: 0.8375
 
 # %%
-class MLPProbe(nn.Module):
-    def __init__(self, d):
-        super().__init__()
-        self.linear1 = nn.Linear(d, 100)
-        self.linear2 = nn.Linear(100, 1)
+print("Disjunction statement")
+calc_LR_accuracy(*get_hs_dataset(template="question_answers.jinja", is_disjunction=True,n=500))
 
-    def forward(self, x):
-        h = F.relu(self.linear1(x))
-        o = self.linear2(h)
-        return torch.sigmoid(o)
+# %%
+print("Conjunction statement")
+calc_LR_accuracy(*get_hs_dataset(template="question_answers.jinja", is_disjunction=False,n=500))
 
+# %% 
+# Random probe
 
+def calc_random_probe_accuracy(x_train, y_train, x_test, y_test):
+    lr = LogisticRegression(class_weight="balanced")
+    print("Logistic regression accuracy: {}".format(lr.score(x_test, y_test)))
+
+print("One statement")
+calc_random_probe_accuracy(*get_hs_dataset(n=100))
+
+print("Disjunction statement")
+calc_random_probe_accuracy(*get_hs_dataset(template="question_answers.jinja", is_disjunction=True, n=100))
+
+print("Conjunction statement")
+calc_random_probe_accuracy(*get_hs_dataset(template="question_answers.jinja", is_disjunction=False, n=100))
+
+# %%
+# CCS probe
 class CCS(object):
     def __init__(
         self,
@@ -330,7 +297,6 @@ class CCS(object):
         batch_size=-1,
         verbose=False,
         device="cuda",
-        linear=True,
         weight_decay=0.01,
         var_normalize=False,
     ):
@@ -350,15 +316,11 @@ class CCS(object):
         self.weight_decay = weight_decay
 
         # probe
-        self.linear = linear
         self.initialize_probe()
         self.best_probe = copy.deepcopy(self.probe)
 
     def initialize_probe(self):
-        if self.linear:
-            self.probe = nn.Sequential(nn.Linear(self.d, 1), nn.Sigmoid())
-        else:
-            self.probe = MLPProbe(self.d)
+        self.probe = nn.Sequential(nn.Linear(self.d, 1), nn.Sigmoid())
         self.probe.to(self.device)
 
     def normalize(self, x):
