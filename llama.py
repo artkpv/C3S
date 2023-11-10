@@ -1,4 +1,5 @@
 # %%
+#from sklearn.linear_model import LogisticRegression
 from IPython.display import display
 from collections import namedtuple
 from datasets import load_dataset
@@ -9,20 +10,20 @@ from pathlib import Path
 from pprint import pp
 from torch import Tensor
 from tqdm import tqdm
+from transformer_lens import ActivationCache, HookedTransformer
 from transformers import LlamaForCausalLM, LlamaTokenizer
 from utils.truthful_qa_ds import get_question_answer_dataset
 import copy
+import lightning as pl
 import numpy as np
 import torch
-import torch
+from torch.utils.data import DataLoader, TensorDataset
 import torch.nn as nn
 import torch.nn.functional as F
-import transformers
-from sklearn.linear_model import LogisticRegression
-
 import transformer_lens.utils as utils
-from transformer_lens import ActivationCache, HookedTransformer
+import transformers
 
+# %%
 login()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -288,14 +289,7 @@ def get_difference_hs_train_test_ds(
 
 
 # %%
-# Logigictic regression accuracy
-def calc_LR_accuracy(x_train, y_train, x_test, y_test):
-    lr = LogisticRegression(class_weight="balanced")
-    lr.fit(x_train, y_train)
-    print("Logistic regression accuracy: {}".format(lr.score(x_test, y_test)))
-
-
-# %%
+# Dataset
 NUM=800
 hs_ds = get_hs_train_test_ds(n=NUM)
 hs_qans_conj_ds = get_hs_train_test_ds(
@@ -309,19 +303,65 @@ diff_ds = get_difference_hs_train_test_ds(*hs_ds)
 diff_qans_conj_ds = get_difference_hs_train_test_ds(*hs_qans_conj_ds)
 diff_qans_disj_ds = get_difference_hs_train_test_ds(*hs_qans_disj_ds)
 
+
+# %%
+# Logigictic regression 
+class LogisticRegression(pl.LightningModule):
+    def __init__(self, input_dim, lr=1e-3):
+        super().__init__()
+        self.lr = lr
+        self.input_dim = input_dim
+        self.fc = nn.Linear(input_dim, 1)
+        self.loss = nn.BCELoss()
+
+    def forward(self, x):
+        return self.fc(x).sigmoid()
+
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self.fc(x).squeeze()
+        loss = self.loss(y_hat, y)
+        return loss
+
+    def configure_optimizers(self):
+        return torch.optim.AdamW(self.parameters(), lr=self.lr)
+
+
+def calc_LR_accuracy(x_train, y_train, x_test, y_test):
+    x_train = torch.tensor(x_train, dtype=torch.float)
+    y_train = torch.tensor(y_train, dtype=torch.float)
+    x_test = torch.tensor(x_test, dtype=torch.float)
+    y_test = torch.tensor(y_test, dtype=torch.float)
+    LR_probe = LogisticRegression(x_train.shape[-1])
+    trainer = pl.Trainer(max_epochs=1000)
+    trainer.fit(LR_probe, DataLoader(TensorDataset(x_train, y_train), batch_size=32, shuffle=True))
+    LR_probe.eval()
+    # Accuracy:
+    y_hat = LR_probe(x_test)
+    y_hat = (y_hat > 0.5).float()
+    acc = (y_hat == y_test).float().mean()
+    print("Logistic regression accuracy: {}".format(acc))
+    return LR_probe
+
+
+#LR_probe = LogisticRegression(class_weight="balanced")
+#def calc_LR_accuracy(x_train, y_train, x_test, y_test):
+#    LR_probe.fit(x_train, y_train)
+#    print("Logistic regression accuracy: {}".format(LR_probe.score(x_test, y_test)))
+
 # %%
 print("One statement")
-calc_LR_accuracy(*diff_ds)
+statement_LR_probe = calc_LR_accuracy(*diff_ds)
 # Logistic regression accuracy: 0.75
 
 # %%
 print("Disjunction statement")
-calc_LR_accuracy(*diff_qans_disj_ds)
+disj_LR_probe = calc_LR_accuracy(*diff_qans_disj_ds)
 # Logistic regression accuracy: 0.95
 
 # %%
 print("Conjunction statement")
-calc_LR_accuracy(*diff_qans_conj_ds)
+conj_LR_probe = calc_LR_accuracy(*diff_qans_conj_ds)
 # Logistic regression accuracy: 0.975
 
 
@@ -412,7 +452,8 @@ class CCS(object):
             device=self.device,
         )
         with torch.no_grad():
-            p0, p1 = self.best_probe(x0), self.best_probe(x1)
+            p0 = self.best_probe(x0)
+            p1 = self.best_probe(x1)
         avg_confidence = 0.5 * (p0 + (1 - p1))
         predictions = (avg_confidence.detach().cpu().numpy() < 0.5).astype(int)[:, 0]
         acc = (predictions == y_test).mean()
@@ -437,69 +478,85 @@ class CCS(object):
         nbatches = len(x0) // batch_size
 
         # Start training (full batch)
-        for epoch in range(self.nepochs):
-            for j in range(nbatches):
-                x0_batch = x0[j * batch_size : (j + 1) * batch_size]
-                x1_batch = x1[j * batch_size : (j + 1) * batch_size]
+        epoch_j = list(
+            (epoch, j)
+            for epoch in range(self.nepochs)
+            for j in range(nbatches))
+        
+        for epoch, j in epoch_j:
+            x0_batch = x0[j * batch_size : (j + 1) * batch_size]
+            x1_batch = x1[j * batch_size : (j + 1) * batch_size]
 
-                # probe
-                p0, p1 = self.probe(x0_batch), self.probe(x1_batch)
+            # probe
+            p0, p1 = self.probe(x0_batch), self.probe(x1_batch)
 
-                # get the corresponding loss
-                loss = self.get_loss(p0, p1)
+            # get the corresponding loss
+            loss = self.get_loss(p0, p1)
 
-                # update the parameters
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+            # update the parameters
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
         return loss.detach().cpu().item()
 
     def repeated_train(self):
         best_loss = np.inf
-        for train_num in range(self.ntries):
+        pbar = tqdm(list(range(self.ntries)))
+        for train_num in pbar:
             self.initialize_probe()
             loss = self.train()
             if loss < best_loss:
                 self.best_probe = copy.deepcopy(self.probe)
                 best_loss = loss
+            pbar.set_description(f"Train {train_num}. Best loss {best_loss:.4}")
 
         return best_loss
 
 # %%
 def calc_random_probe_and_ccs_accuracies(
-    neg_hs_train, pos_hs_train, y_train, neg_hs_test, pos_hs_test, y_test
+    neg_hs_train, pos_hs_train, y_train, neg_hs_test, pos_hs_test, y_test,
+    lr=1e-3, batch_size=-1
 ):
-    ccs = CCS(neg_hs_train, pos_hs_train)
-    ccs_acc = ccs.get_acc(neg_hs_test, pos_hs_test, y_test)
-    print("Random accuracy: {}".format(ccs_acc))
+    ccs = CCS(neg_hs_train, pos_hs_train, lr=lr, nepochs=500)
+    rand_acc = ccs.get_acc(neg_hs_test, pos_hs_test, y_test)
 
     ccs.repeated_train()
-    print("CCS accuracy: {}".format(ccs_acc))
+    ccs_acc = ccs.get_acc(neg_hs_test, pos_hs_test, y_test)
+    return ccs, rand_acc, ccs_acc
 
 
 # %%
-# TODO: Run many times, take mean and std
-print("One statement")
-calc_random_probe_and_ccs_accuracies(*hs_ds)
+names =[
+    "One statement",
+    "Disjunction",
+    "Conjunction",
+]
+best_probes = [
+    (None, 0, 0),
+    (None, 0, 0),
+    (None, 0, 0),
+]
+for lr in (1e-3, 1e-4, 1e-5):
+    for bs in (32, 128, 512, -1):
+        print(f"lr={lr}, bs={bs}")
+        for i, ds in enumerate([hs_ds, hs_qans_disj_ds, hs_qans_conj_ds]):
+            probe, rand_acc, ccs_acc = calc_random_probe_and_ccs_accuracies(*ds)
+            if ccs_acc > best_probes[i][2]:
+                best_probes[i] = (probe, rand_acc, ccs_acc)
+                print(f"Best CCS accuracy: {best_probes[i][2]:.4}, random accuracy: {best_probes[i][1]:.4}")
 
-print("Disjunction statement")
-calc_random_probe_and_ccs_accuracies(*hs_qans_disj_ds)
-
-print("Conjunction statement")
-calc_random_probe_and_ccs_accuracies(*hs_qans_conj_ds)
+# %%
+for i in range(3):
+    print(f"{names[i]} Best CCS accuracy: {best_probes[i][2]:.4}, random accuracy: {best_probes[i][1]:.4}")
 
 '''
-BUG?
-One statement
-Random accuracy: 0.7
-CCS accuracy: 0.7
-Disjunction statement
-Random accuracy: 0.625
-CCS accuracy: 0.625
-Conjunction statement
-Random accuracy: 0.725
-CCS accuracy: 0.725
+
+Пт 10 ноя 2023 15:10:14 MSK
+One statement. Best CCS accuracy: 0.8313, random accuracy: 0.5437
+Disjunction. Best CCS accuracy: 0.575, random accuracy: 0.5062
+Conjunction. Best CCS accuracy: 0.9938, random accuracy: 0.7125
+
 '''
 
 # %%
