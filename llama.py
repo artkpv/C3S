@@ -33,6 +33,7 @@ model_type = torch.float16
 
 # %%
 # Part 1. Calculate accuracies.
+# =============================
 
 # %%
 # Load model
@@ -633,21 +634,11 @@ torch.save(
 )
 
 # %%
+# ==========
 # Part 2. MI
+# ==========
 
 # %%
-# Load probes:
-names = [
-    "One statement",
-    "Disjunction",
-    "Conjunction",
-]
-for i, name in enumerate(names):
-    torch.save(
-        probe.best_probe.state_dict(),
-        f"data/llama-probes/truthful_qa/ccs_{name.lower().replace(' ', '_')}_probe.pt",
-    )
-#%%
 tokenizer = LlamaTokenizer.from_pretrained(
     "meta-llama/Llama-2-7b-chat-hf",
     # device_map=device,
@@ -678,4 +669,55 @@ model = model.to(device)
 model.eval()
 pp(model)
 pp(model.cfg)
-model.generate("The capital of Russia is", max_new_tokens=20, temperature=0)
+model.generate("The capital of China is", max_new_tokens=20, temperature=0)
+
+# %%
+truthfulqa = load_dataset("truthful_qa", "generation")  # 817 rows
+env = Environment(loader=PackageLoader("utils"), autoescape=select_autoescape())
+
+# %%
+# One sentence:
+row_id = 125
+
+row = truthfulqa["validation"][row_id]
+env_t = env.get_template("question_answer.jinja")
+input_text = env_t.render(row, is_correct_answer=True, label=str(False))
+with torch.no_grad():
+    logits, cache = model.run_with_cache(input_text)
+# Last layer hidden states:
+final_residual_stream = cache["resid_post", -1]
+
+d_model = model.cfg.d_model
+assert d_model == final_residual_stream.shape[-1]
+
+# %%
+# Load probes:
+LR_probes = []
+
+for p_paths in [
+    "data/llama-probes/truthful_qa/statement_LR_probe_probe.pt",
+    f"data/llama-probes/truthful_qa/disj_LR_probe.pt",
+    f"data/llama-probes/truthful_qa/conj_LR_probe.pt",
+]:
+    probe = LogisticRegression(d_model)
+    probe.load_state_dict(torch.load(p_paths))
+    probe.eval()
+    LR_probes.append(probe)
+    pp(probe)
+
+names = [
+    "One statement",
+    "Disjunction",
+    "Conjunction",
+]
+ccs_probes = []
+for i, name in enumerate(names):
+    probe = nn.Sequential(nn.Linear(d_model, 1), nn.Sigmoid())
+    loaded = torch.load(
+        f"data/llama-probes/truthful_qa/ccs_{names[i].lower().replace(' ', '_')}_probe.pt",
+    )
+    probe.load_state_dict(loaded)
+    probe.eval()
+    ccs_probes.append(probe)
+    pp(probe)
+# %%
