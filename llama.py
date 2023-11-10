@@ -287,12 +287,6 @@ def get_difference_hs_train_test_ds(
     return x_train, y_train, x_test, y_test
 
 
-def get_diff_ds(n=800, template="question_answer.jinja", is_disjunction=False):
-    return get_difference_hs_train_test_ds(
-        *get_hs_train_test_ds(n=n, template=template, is_disjunction=is_disjunction)
-    )
-
-
 # %%
 # Logigictic regression accuracy
 def calc_LR_accuracy(x_train, y_train, x_test, y_test):
@@ -302,14 +296,17 @@ def calc_LR_accuracy(x_train, y_train, x_test, y_test):
 
 
 # %%
-
-diff_ds = get_diff_ds(n=200)
-diff_qans_conj_ds = get_diff_ds(
+hs_ds = get_hs_train_test_ds(n=200)
+hs_qans_conj_ds = get_hs_train_test_ds(
     template="question_answers.jinja", is_disjunction=False, n=200
 )
-diff_qans_disj_ds = get_diff_ds(
+hs_qans_disj_ds = get_hs_train_test_ds(
     template="question_answers.jinja", is_disjunction=True, n=200
 )
+
+diff_ds = get_difference_hs_train_test_ds(*hs_ds)
+diff_qans_conj_ds = get_difference_hs_train_test_ds(*hs_qans_conj_ds)
+diff_qans_disj_ds = get_difference_hs_train_test_ds(*hs_qans_disj_ds)
 
 # %%
 print("One statement")
@@ -318,45 +315,13 @@ calc_LR_accuracy(*diff_ds)
 
 # %%
 print("Disjunction statement")
-calc_LR_accuracy( *diff_qans_conj_ds)
+calc_LR_accuracy(*diff_qans_disj_ds)
 # Logistic regression accuracy: 0.95
 
 # %%
 print("Conjunction statement")
-calc_LR_accuracy( *diff_qans_disj_ds)
+calc_LR_accuracy(*diff_qans_conj_ds)
 # Logistic regression accuracy: 0.975
-
-
-# %%
-# Random probe
-def normalize(x):
-    return (x - x.mean(axis=0, keepdims=True)) / x.std(axis=0, keepdims=True)
-
-def calc_random_probe_accuracy(x_train, y_train, x_test, y_test):
-    x_test = torch.tensor(x_test, dtype=torch.float, requires_grad=False, device="cpu")
-    y_test = torch.tensor(y_test, dtype=torch.float, requires_grad=False, device="cpu")
-    random_p = nn.Sequential(nn.Linear(x_test.shape[-1], 1), nn.Sigmoid())
-
-    x_test_n = torch.tensor(
-        normalize(x_test),
-        dtype=torch.float,
-        requires_grad=False,
-        device="cpu",
-    )
-    with torch.no_grad():
-        predictions = random_p(x_test_n)
-    acc = (predictions == y_test).float().mean()
-    print(f"Random accuracy: {acc}")
-
-
-print("One statement")
-calc_random_probe_accuracy(*diff_ds)
-
-print("Disjunction statement")
-calc_random_probe_accuracy(*diff_qans_disj_ds)
-
-print("Conjunction statement")
-calc_random_probe_accuracy( *diff_qans_conj_ds)
 
 
 # %%
@@ -500,15 +465,28 @@ class CCS(object):
 
         return best_loss
 
+# %%
+def calc_random_probe_and_ccs_accuracies(
+    neg_hs_train, pos_hs_train, y_train, neg_hs_test, pos_hs_test, y_test
+):
+    ccs = CCS(neg_hs_train, pos_hs_train)
+    ccs_acc = ccs.get_acc(neg_hs_test, pos_hs_test, y_test)
+    print("Random accuracy: {}".format(ccs_acc))
+
+    ccs.repeated_train()
+    print("CCS accuracy: {}".format(ccs_acc))
+
 
 # %%
-# Train CCS without any labels
-ccs = CCS(neg_hs_train, pos_hs_train)
-ccs.repeated_train()
+# TODO: Run many times, take mean and std
+print("One statement")
+calc_random_probe_and_ccs_accuracies(*hs_ds)
 
-# Evaluate
-ccs_acc = ccs.get_acc(neg_hs_test, pos_hs_test, y_test)
-print("CCS accuracy: {}".format(ccs_acc))
+print("Disjunction statement")
+calc_random_probe_and_ccs_accuracies(*hs_qans_disj_ds)
+
+print("Conjunction statement")
+calc_random_probe_and_ccs_accuracies(*hs_qans_conj_ds)
 
 # %%
 # Part 2. MI
