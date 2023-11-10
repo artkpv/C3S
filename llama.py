@@ -91,8 +91,11 @@ with torch.no_grad():
             t_output = {k: t_output[k].to(device) for k in t_output}
             outputs = model(**t_output, output_hidden_states=False)
             pred = outputs.logits[0, -1].softmax(dim=-1)
-            predicted = (pred[true_token] > pred[false_token]).item()
-            return predicted == take_correct
+            token = pred.argmax(-1)
+            is_correct = token == true_token if take_correct else token == false_token
+            return is_correct
+            #predicted = (pred[true_token] > pred[false_token]).item()
+            #return predicted == take_correct
 
         with_true = is_correct_answer(True)
         count += 1
@@ -107,7 +110,9 @@ with torch.no_grad():
         p_bar.set_description(
             f"Correct {correct_n}, count {count}, accuracy {correct_n / count:.4}, both {len(correct_samples)}"
         )
-# Result: Correct 972, count 1634, accuracy 0.5949, both 261
+
+# Result for true_token > false_token : Correct 972, count 1634, accuracy 0.5949, both 261
+# Result for predicted token == true_token or false_token: Correct 970, count 1634, accuracy 0.5936, both 259: 100%|██████████| 817/817 [12:10<00:00,  1.12it/s]
 
 # %%
 # Accuracy for disjunction / conjunction sentences for correctly
