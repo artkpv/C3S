@@ -178,7 +178,8 @@ calc_accuracy_for(is_disjunction=False)
 
 # %%
 # Get hidden states for probes
-VERBOSE=False
+VERBOSE = False
+
 
 def get_hidden_states_many_examples(
     model,
@@ -203,9 +204,9 @@ def get_hidden_states_many_examples(
         Returns a numpy array of shape (hidden_dim,)
         """
         if VERBOSE:
-            print("="*10)
+            print("=" * 10)
             print(input_text)
-            print("="*10)
+            print("=" * 10)
         encoder_text_ids = tokenizer(
             input_text, truncation=True, return_tensors="pt"
         ).input_ids.to(model.device)
@@ -290,12 +291,14 @@ def convert_to_difference_hs_train_test_ds(
     x_train = neg_hs_train - pos_hs_train
     x_test = neg_hs_test - pos_hs_test
     return x_train, y_train, x_test, y_test
-#%%
+
+
+# %%
 # Test
-VERBOSE=True
-get_hs_train_test_ds( template="question_answers.jinja", is_disjunction=False, n=5)
-get_hs_train_test_ds( template="question_answers.jinja", is_disjunction=True, n=5)
-VERBOSE=False
+VERBOSE = True
+get_hs_train_test_ds(template="question_answers.jinja", is_disjunction=False, n=5)
+get_hs_train_test_ds(template="question_answers.jinja", is_disjunction=True, n=5)
+VERBOSE = False
 
 # %%
 # Dataset
@@ -364,17 +367,19 @@ def calc_LR_accuracy(x_train, y_train, x_test, y_test):
 # %%
 print("One statement")
 statement_LR_probe = calc_LR_accuracy(*diff_ds)
-# Logistic regression accuracy: 0.8374999761581421
+# Logistic regression accuracy: 0.831250011920929
 
 # %%
 print("Disjunction statement")
 disj_LR_probe = calc_LR_accuracy(*diff_qans_disj_ds)
-# Logistic regression accuracy: 0.9937499761581421
+
+# Logistic regression accuracy: 0.7749999761581421
 
 # %%
 print("Conjunction statement")
 conj_LR_probe = calc_LR_accuracy(*diff_qans_conj_ds)
-# Logistic regression accuracy: 1.0  -- Strange. Wrong data?
+
+# Logistic regression accuracy: 0.8187500238418579
 
 
 # %%
@@ -467,8 +472,8 @@ class CCS(object):
             p0 = self.best_probe(x0)
             p1 = self.best_probe(x1)
         avg_confidence = 0.5 * (p0 + (1 - p1))
-        predictions = (avg_confidence.detach().cpu().numpy() < 0.5).astype(int)[:, 0]
-        acc = (predictions == y_test).mean()
+        predictions = (avg_confidence.detach() < 0.5).int()[:, 0]
+        acc = (predictions == y_test).float().mean()
         acc = max(acc, 1 - acc)
 
         return acc
@@ -535,16 +540,28 @@ def calc_random_probe_and_ccs_accuracies(
     y_test,
     lr=1e-3,
     batch_size=-1,
+    nepocs=1000,
+    random_tries=10,
 ):
-    ccs = CCS(neg_hs_train, pos_hs_train, lr=lr, nepochs=500)
-    rand_acc = ccs.get_acc(neg_hs_test, pos_hs_test, y_test)
+    rand_accuracies = []
+    best_rand_acc_probe = None
+    best_rand_acc = 0.0
+    for t in range(random_tries):
+        ccs = CCS(neg_hs_train, pos_hs_train, lr=lr, nepochs=nepocs)
+        rand_accuracies.append(ccs.get_acc(neg_hs_test, pos_hs_test, y_test).item())
+        if rand_accuracies[-1] > best_rand_acc:
+            best_rand_acc = rand_accuracies[-1]
+            best_rand_acc_probe = ccs
+    rand_accuracies = np.array(rand_accuracies)
 
+    ccs = best_rand_acc_probe
     ccs.repeated_train()
     ccs_acc = ccs.get_acc(neg_hs_test, pos_hs_test, y_test)
-    return ccs, rand_acc, ccs_acc
+    return ccs, rand_accuracies.mean(), ccs_acc, rand_accuracies.std()
 
 
 # %%
+# Do sweep to find better LR and BS for CCS probe:
 names = [
     "One statement",
     "Disjunction",
@@ -559,27 +576,61 @@ for lr in (1e-3, 1e-4, 1e-5):
     for bs in (32, 128, 512, -1):
         print(f"lr={lr}, bs={bs}")
         for i, ds in enumerate([hs_ds, hs_qans_disj_ds, hs_qans_conj_ds]):
-            probe, rand_acc, ccs_acc = calc_random_probe_and_ccs_accuracies(*ds)
+            probe, rand_acc, ccs_acc, _ = calc_random_probe_and_ccs_accuracies(
+                *ds, lr=lr, batch_size=bs, nepocs=50
+            )
             if ccs_acc > best_probes[i][2]:
                 best_probes[i] = (probe, rand_acc, ccs_acc)
                 print(
-                    f"Best CCS accuracy: {best_probes[i][2]:.4}, random accuracy: {best_probes[i][1]:.4}"
+                    f"{names[i]}. Best CCS accuracy: {best_probes[i][2]:.4}, random accuracy: {best_probes[i][1]:.4}, lr={lr}, bs={bs}"
                 )
 
+"""
+Result of the sweep:
+One statement. Best CCS accuracy: 0.825, random accuracy: 0.7312, lr=0.001, bs=32
+Disjunction. Best CCS accuracy: 0.55, random accuracy: 0.525, lr=0.001, bs=32
+Conjunction. Best CCS accuracy: 0.5938, random accuracy: 0.5688, lr=0.001, bs=32
+Disjunction. Best CCS accuracy: 0.5875, random accuracy: 0.575, lr=0.001, bs=-1
+Conjunction. Best CCS accuracy: 0.6313, random accuracy: 0.6625, lr=0.0001, bs=32
+Conjunction. Best CCS accuracy: 0.6562, random accuracy: 0.5875, lr=1e-05, bs=128
+Conjunction. Best CCS accuracy: 0.675, random accuracy: 0.5875, lr=1e-05, bs=-1
+"""
+
 # %%
-for i in range(3):
+# Calc accuracy for random and CCS probes:
+probes = []
+for i, ds in enumerate([hs_ds, hs_qans_disj_ds, hs_qans_conj_ds]):
+    probe, rand_acc_mean, ccs_acc, rand_acc_std = calc_random_probe_and_ccs_accuracies(
+        *ds, lr=1e-4, batch_size=128, nepocs=1000, random_tries=200
+    )
+    probes.append((probe, rand_acc, ccs_acc))
     print(
-        f"{names[i]} Best CCS accuracy: {best_probes[i][2]:.4}, random accuracy: {best_probes[i][1]:.4}"
+        f"""{names[i]}. 
+        Best CCS accuracy: {ccs_acc:.4}
+        Random accuracy: {rand_acc_mean:.4} mean, {rand_acc_std:.4} std
+        """
     )
 
-"""
+# %%
+# Save probes:
+for i, (probe, rand_acc, ccs_acc) in enumerate(probes):
+    torch.save(
+        probe.best_probe.state_dict(),
+        f"data/llama-probes/truthful_qa/ccs_{names[i].lower().replace(' ', '_')}_probe.pt",
+    )
 
-Пт 10 ноя 2023 15:10:14 MSK
-One statement. Best CCS accuracy: 0.8313, random accuracy: 0.5437
-Disjunction. Best CCS accuracy: 0.575, random accuracy: 0.5062
-Conjunction. Best CCS accuracy: 0.9938, random accuracy: 0.7125
-
-"""
+torch.save(
+    statement_LR_probe.state_dict(),
+    f"data/llama-probes/truthful_qa/statement_LR_probe_probe.pt",
+)
+torch.save(
+    disj_LR_probe.state_dict(),
+    f"data/llama-probes/truthful_qa/disj_LR_probe.pt",
+)
+torch.save(
+    conj_LR_probe.state_dict(),
+    f"data/llama-probes/truthful_qa/conj_LR_probe.pt",
+)
 
 # %%
 # Part 2. MI
