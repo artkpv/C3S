@@ -635,6 +635,19 @@ torch.save(
 # %%
 # Part 2. MI
 
+# %%
+# Load probes:
+names = [
+    "One statement",
+    "Disjunction",
+    "Conjunction",
+]
+for i, name in enumerate(names):
+    torch.save(
+        probe.best_probe.state_dict(),
+        f"data/llama-probes/truthful_qa/ccs_{name.lower().replace(' ', '_')}_probe.pt",
+    )
+#%%
 tokenizer = LlamaTokenizer.from_pretrained(
     "meta-llama/Llama-2-7b-chat-hf",
     # device_map=device,
