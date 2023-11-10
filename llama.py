@@ -296,12 +296,13 @@ def calc_LR_accuracy(x_train, y_train, x_test, y_test):
 
 
 # %%
-hs_ds = get_hs_train_test_ds(n=200)
+NUM=800
+hs_ds = get_hs_train_test_ds(n=NUM)
 hs_qans_conj_ds = get_hs_train_test_ds(
-    template="question_answers.jinja", is_disjunction=False, n=200
+    template="question_answers.jinja", is_disjunction=False, n=NUM
 )
 hs_qans_disj_ds = get_hs_train_test_ds(
-    template="question_answers.jinja", is_disjunction=True, n=200
+    template="question_answers.jinja", is_disjunction=True, n=NUM
 )
 
 diff_ds = get_difference_hs_train_test_ds(*hs_ds)
@@ -487,6 +488,19 @@ calc_random_probe_and_ccs_accuracies(*hs_qans_disj_ds)
 
 print("Conjunction statement")
 calc_random_probe_and_ccs_accuracies(*hs_qans_conj_ds)
+
+'''
+BUG?
+One statement
+Random accuracy: 0.7
+CCS accuracy: 0.7
+Disjunction statement
+Random accuracy: 0.625
+CCS accuracy: 0.625
+Conjunction statement
+Random accuracy: 0.725
+CCS accuracy: 0.725
+'''
 
 # %%
 # Part 2. MI
