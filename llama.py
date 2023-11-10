@@ -94,8 +94,8 @@ with torch.no_grad():
             token = pred.argmax(-1)
             is_correct = token == true_token if take_correct else token == false_token
             return is_correct
-            #predicted = (pred[true_token] > pred[false_token]).item()
-            #return predicted == take_correct
+            # predicted = (pred[true_token] > pred[false_token]).item()
+            # return predicted == take_correct
 
         with_true = is_correct_answer(True)
         count += 1
@@ -112,13 +112,12 @@ with torch.no_grad():
         )
 
 # Result for true_token > false_token : Correct 972, count 1634, accuracy 0.5949, both 261
-# Result for predicted token == true_token or false_token: Correct 970, count 1634, accuracy 0.5936, both 259: 100%|██████████| 817/817 [12:10<00:00,  1.12it/s]
+# Result for predicted token == true_token or false_token: Correct 974, count 1634, accuracy 0.5961, both 263: 100%|██████████| 817/817 [01:21<00:00, 10.04it/s]
+
 
 # %%
 # Accuracy for disjunction / conjunction sentences for correctly
 # detected samples. Few shot.
-
-
 def calc_accuracy_for(is_disjunction):
     count = 0
     correct_compound = []
@@ -169,9 +168,7 @@ calc_accuracy_for(False)
 
 
 # %%
-# Training LR, CCS probes
-
-
+# Inferece with hidden states
 def get_hidden_states(model, tokenizer, input_text, layer=-1):
     """
     Given an encoder model and some text, gets the encoder hidden states (in a given layer, by default the last)
@@ -232,12 +229,24 @@ def get_hidden_states_many_examples(
         neg_hs = get_hidden_states(
             model,
             tokenizer,
-            format_row(data[i], True, true_label, template, is_disjunction),
+            format_row(
+                data[i],
+                label=True,
+                true_label=true_label,
+                template=template,
+                is_disjunction=is_disjunction,
+            ),
         )
         pos_hs = get_hidden_states(
             model,
             tokenizer,
-            format_row(data[i], False, true_label, template, is_disjunction),
+            format_row(
+                data[i],
+                label=False,
+                true_label=true_label,
+                template=template,
+                is_disjunction=is_disjunction,
+            ),
         )
 
         # collect
@@ -253,7 +262,7 @@ def get_hidden_states_many_examples(
 
 
 # %%
-def get_hs_dataset(n=800, template="question_answer.jinja", is_disjunction=False):
+def get_hs_train_test_ds(n=800, template="question_answer.jinja", is_disjunction=False):
     neg_hs, pos_hs, y = get_hidden_states_many_examples(
         model,
         tokenizer,
@@ -264,14 +273,24 @@ def get_hs_dataset(n=800, template="question_answer.jinja", is_disjunction=False
     )
     n = len(y)
     train_num = int(n * 0.8)
-    test_num = n - train_num
-
     neg_hs_train, neg_hs_test = neg_hs[:train_num], neg_hs[train_num:]
     pos_hs_train, pos_hs_test = pos_hs[:train_num], pos_hs[train_num:]
     y_train, y_test = y[:train_num], y[train_num:]
+    return neg_hs_train, pos_hs_train, y_train, neg_hs_test, pos_hs_test, y_test
+
+
+def get_difference_hs_train_test_ds(
+    neg_hs_train, pos_hs_train, y_train, neg_hs_test, pos_hs_test, y_test
+):
     x_train = neg_hs_train - pos_hs_train
     x_test = neg_hs_test - pos_hs_test
     return x_train, y_train, x_test, y_test
+
+
+def get_diff_ds(n=800, template="question_answer.jinja", is_disjunction=False):
+    return get_difference_hs_train_test_ds(
+        *get_hs_train_test_ds(n=n, template=template, is_disjunction=is_disjunction)
+    )
 
 
 # %%
@@ -279,35 +298,43 @@ def get_hs_dataset(n=800, template="question_answer.jinja", is_disjunction=False
 def calc_LR_accuracy(x_train, y_train, x_test, y_test):
     lr = LogisticRegression(class_weight="balanced")
     lr.fit(x_train, y_train)
-    lr.save("lr.joblib")
     print("Logistic regression accuracy: {}".format(lr.score(x_test, y_test)))
 
 
 # %%
+
+diff_ds = get_diff_ds(n=200)
+diff_qans_conj_ds = get_diff_ds(
+    template="question_answers.jinja", is_disjunction=False, n=200
+)
+diff_qans_disj_ds = get_diff_ds(
+    template="question_answers.jinja", is_disjunction=True, n=200
+)
+
+# %%
 print("One statement")
-calc_LR_accuracy(*get_hs_dataset())
-# Logistic regression accuracy: 0.8375
+calc_LR_accuracy(*diff_ds)
+# Logistic regression accuracy: 0.75
 
 # %%
 print("Disjunction statement")
-calc_LR_accuracy(
-    *get_hs_dataset(template="question_answers.jinja", is_disjunction=True, n=500)
-)
+calc_LR_accuracy( *diff_qans_conj_ds)
+# Logistic regression accuracy: 0.95
 
 # %%
 print("Conjunction statement")
-calc_LR_accuracy(
-    *get_hs_dataset(template="question_answers.jinja", is_disjunction=False, n=500)
-)
-
-# %%
-def normalize(x):
-    return (x - x.mean(axis=0, keepdims=True)) / x.std(axis=0, keepdims=True)
+calc_LR_accuracy( *diff_qans_disj_ds)
+# Logistic regression accuracy: 0.975
 
 
 # %%
 # Random probe
+def normalize(x):
+    return (x - x.mean(axis=0, keepdims=True)) / x.std(axis=0, keepdims=True)
+
 def calc_random_probe_accuracy(x_train, y_train, x_test, y_test):
+    x_test = torch.tensor(x_test, dtype=torch.float, requires_grad=False, device="cpu")
+    y_test = torch.tensor(y_test, dtype=torch.float, requires_grad=False, device="cpu")
     random_p = nn.Sequential(nn.Linear(x_test.shape[-1], 1), nn.Sigmoid())
 
     x_test_n = torch.tensor(
@@ -318,22 +345,18 @@ def calc_random_probe_accuracy(x_train, y_train, x_test, y_test):
     )
     with torch.no_grad():
         predictions = random_p(x_test_n)
-    acc = (predictions == y_test).mean()
+    acc = (predictions == y_test).float().mean()
     print(f"Random accuracy: {acc}")
 
 
 print("One statement")
-calc_random_probe_accuracy(*get_hs_dataset(n=100))
+calc_random_probe_accuracy(*diff_ds)
 
 print("Disjunction statement")
-calc_random_probe_accuracy(
-    *get_hs_dataset(template="question_answers.jinja", is_disjunction=True, n=100)
-)
+calc_random_probe_accuracy(*diff_qans_disj_ds)
 
 print("Conjunction statement")
-calc_random_probe_accuracy(
-    *get_hs_dataset(template="question_answers.jinja", is_disjunction=False, n=100)
-)
+calc_random_probe_accuracy( *diff_qans_conj_ds)
 
 
 # %%
