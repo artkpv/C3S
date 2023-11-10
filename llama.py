@@ -729,9 +729,9 @@ print(attention_pattern.shape)
 str_tokens = model.to_str_tokens(input_text)
 
 print("Layer 0 Head Attention Patterns:")
-display(cv.attention.attention_patterns(
+cv.attention.attention_patterns(
     tokens=str_tokens, 
     attention=attention_pattern,
     #attention_head_names=[f"L0H{i}" for i in range(12)],   # Breaks for me.
-))
+)
 # %%
