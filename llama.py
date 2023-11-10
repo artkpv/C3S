@@ -1,5 +1,5 @@
 # %%
-#from sklearn.linear_model import LogisticRegression
+# from sklearn.linear_model import LogisticRegression
 from IPython.display import display
 from collections import namedtuple
 from datasets import load_dataset
@@ -78,39 +78,47 @@ env = Environment(loader=PackageLoader("utils"), autoescape=select_autoescape())
 # %%
 # Accuracy on the TruthfulQA dataset, few shot.
 
-count = 0
-correct_samples = []
-correct_n = 0
-qa_t = env.get_template("question_answer.jinja")
-with torch.no_grad():
-    p_bar = tqdm(list(enumerate(truthfulqa["validation"])))
-    for i, row in p_bar:
 
-        def is_correct_answer(take_correct):
-            input_ = qa_t.render(row, is_correct_answer=take_correct, label="")
-            t_output = tokenizer(input_, return_tensors="pt")
-            t_output = {k: t_output[k].to(device) for k in t_output}
-            outputs = model(**t_output, output_hidden_states=False)
-            pred = outputs.logits[0, -1].softmax(dim=-1)
-            token = pred.argmax(-1)
-            is_correct = token == true_token if take_correct else token == false_token
-            return is_correct
-            # predicted = (pred[true_token] > pred[false_token]).item()
-            # return predicted == take_correct
+def calc_accuracy_for_one_statement():
+    correct_samples = []
+    count = 0
+    correct_n = 0
+    qa_t = env.get_template("question_answer.jinja")
+    with torch.no_grad():
+        p_bar = tqdm(list(enumerate(truthfulqa["validation"])))
+        for i, row in p_bar:
 
-        with_true = is_correct_answer(True)
-        count += 1
-        if with_true:
-            correct_n += 1
-        with_false = is_correct_answer(False)
-        count += 1
-        if with_false:
-            correct_n += 1
-        if with_true and with_false:
-            correct_samples.append(row)
-        p_bar.set_description(
-            f"Correct {correct_n}, count {count}, accuracy {correct_n / count:.4}, both {len(correct_samples)}"
-        )
+            def is_correct_answer(take_correct):
+                input_ = qa_t.render(row, is_correct_answer=take_correct, label="")
+                t_output = tokenizer(input_, return_tensors="pt")
+                t_output = {k: t_output[k].to(device) for k in t_output}
+                outputs = model(**t_output, output_hidden_states=False)
+                pred = outputs.logits[0, -1].softmax(dim=-1)
+                token = pred.argmax(-1)
+                is_correct = (
+                    token == true_token if take_correct else token == false_token
+                )
+                return is_correct
+                # predicted = (pred[true_token] > pred[false_token]).item()
+                # return predicted == take_correct
+
+            with_true = is_correct_answer(True)
+            count += 1
+            if with_true:
+                correct_n += 1
+            with_false = is_correct_answer(False)
+            count += 1
+            if with_false:
+                correct_n += 1
+            if with_true and with_false:
+                correct_samples.append(row)
+            p_bar.set_description(
+                f"Correct {correct_n}, count {count}, accuracy {correct_n / count:.4}, both {len(correct_samples)}"
+            )
+    return correct_samples
+
+
+correct_samples = calc_accuracy_for_one_statement()
 
 # Result for true_token > false_token : Correct 972, count 1634, accuracy 0.5949, both 261
 # Result for predicted token == true_token or false_token: Correct 974, count 1634, accuracy 0.5961, both 263: 100%|██████████| 817/817 [01:21<00:00, 10.04it/s]
@@ -169,40 +177,8 @@ calc_accuracy_for(is_disjunction=False)
 
 
 # %%
-# Inferece with hidden states
-def get_hidden_states(model, tokenizer, input_text, layer=-1):
-    """
-    Given an encoder model and some text, gets the encoder hidden states (in a given layer, by default the last)
-    on that input text (where the full text is given to the encoder).
-
-    Returns a numpy array of shape (hidden_dim,)
-    """
-    # tokenize
-    encoder_text_ids = tokenizer(
-        input_text, truncation=True, return_tensors="pt"
-    ).input_ids.to(model.device)
-
-    # forward pass
-    with torch.no_grad():
-        output = model(encoder_text_ids, output_hidden_states=True)
-
-    # get the appropriate hidden states
-    hs_tuple = output["hidden_states"]
-
-    hs = hs_tuple[layer][0, -1].detach().cpu()
-
-    return hs
-
-
-def format_row(row, label, true_label, template, is_disjunction):
-    env_t = env.get_template(template)
-    return env_t.render(
-        row,
-        is_correct_answer=true_label,
-        label=str(label),
-        is_disjunction=is_disjunction,
-    )
-
+# Get hidden states for probes
+VERBOSE=False
 
 def get_hidden_states_many_examples(
     model,
@@ -219,6 +195,35 @@ def get_hidden_states_many_examples(
 
     This is deliberately simple so that it's easy to understand, rather than being optimized for efficiency
     """
+
+    def get_hidden_states(model, tokenizer, input_text, layer=-1):
+        """
+        Given an encoder model and some text, gets the encoder hidden states (in a given layer, by default the last)
+        on that input text (where the full text is given to the encoder).
+        Returns a numpy array of shape (hidden_dim,)
+        """
+        if VERBOSE:
+            print("="*10)
+            print(input_text)
+            print("="*10)
+        encoder_text_ids = tokenizer(
+            input_text, truncation=True, return_tensors="pt"
+        ).input_ids.to(model.device)
+        with torch.no_grad():
+            output = model(encoder_text_ids, output_hidden_states=True)
+        hs_tuple = output["hidden_states"]
+        hs = hs_tuple[layer][0, -1].detach()
+        return hs
+
+    def format_row(row, label, true_label, template, is_disjunction):
+        env_t = env.get_template(template)
+        return env_t.render(
+            row,
+            is_correct_answer=true_label,
+            label=str(label),
+            is_disjunction=is_disjunction,
+        )
+
     # setup
     model.eval()
     all_neg_hs, all_pos_hs, all_gt_labels = [], [], []
@@ -253,16 +258,15 @@ def get_hidden_states_many_examples(
         # collect
         all_neg_hs.append(neg_hs)
         all_pos_hs.append(pos_hs)
-        all_gt_labels.append(torch.tensor(true_label))
+        all_gt_labels.append(torch.tensor(true_label).to(device))
 
-    all_neg_hs = torch.stack(all_neg_hs)
-    all_pos_hs = torch.stack(all_pos_hs)
-    all_gt_labels = torch.stack(all_gt_labels)
+    all_neg_hs = torch.stack(all_neg_hs).type(torch.float)
+    all_pos_hs = torch.stack(all_pos_hs).type(torch.float)
+    all_gt_labels = torch.stack(all_gt_labels).type(torch.float)
 
     return all_neg_hs, all_pos_hs, all_gt_labels
 
 
-# %%
 def get_hs_train_test_ds(n=800, template="question_answer.jinja", is_disjunction=False):
     neg_hs, pos_hs, y = get_hidden_states_many_examples(
         model,
@@ -280,17 +284,22 @@ def get_hs_train_test_ds(n=800, template="question_answer.jinja", is_disjunction
     return neg_hs_train, pos_hs_train, y_train, neg_hs_test, pos_hs_test, y_test
 
 
-def get_difference_hs_train_test_ds(
+def convert_to_difference_hs_train_test_ds(
     neg_hs_train, pos_hs_train, y_train, neg_hs_test, pos_hs_test, y_test
 ):
     x_train = neg_hs_train - pos_hs_train
     x_test = neg_hs_test - pos_hs_test
     return x_train, y_train, x_test, y_test
-
+#%%
+# Test
+VERBOSE=True
+get_hs_train_test_ds( template="question_answers.jinja", is_disjunction=False, n=5)
+get_hs_train_test_ds( template="question_answers.jinja", is_disjunction=True, n=5)
+VERBOSE=False
 
 # %%
 # Dataset
-NUM=100
+NUM = 800
 hs_ds = get_hs_train_test_ds(n=NUM)
 hs_qans_conj_ds = get_hs_train_test_ds(
     template="question_answers.jinja", is_disjunction=False, n=NUM
@@ -299,23 +308,23 @@ hs_qans_disj_ds = get_hs_train_test_ds(
     template="question_answers.jinja", is_disjunction=True, n=NUM
 )
 
-diff_ds = get_difference_hs_train_test_ds(*hs_ds)
-diff_qans_conj_ds = get_difference_hs_train_test_ds(*hs_qans_conj_ds)
-diff_qans_disj_ds = get_difference_hs_train_test_ds(*hs_qans_disj_ds)
+diff_ds = convert_to_difference_hs_train_test_ds(*hs_ds)
+diff_qans_conj_ds = convert_to_difference_hs_train_test_ds(*hs_qans_conj_ds)
+diff_qans_disj_ds = convert_to_difference_hs_train_test_ds(*hs_qans_disj_ds)
 
 
 # %%
-# Logigictic regression 
+# Logigictic regression
 class LogisticRegression(pl.LightningModule):
     def __init__(self, input_dim, lr=1e-3):
         super().__init__()
         self.lr = lr
         self.input_dim = input_dim
         self.fc = nn.Linear(input_dim, 1)
-        self.loss = nn.BCELoss()
+        self.loss = nn.BCEWithLogitsLoss()
 
     def forward(self, x):
-        return self.fc(x).sigmoid()
+        return self.fc(x)
 
     def training_step(self, batch, batch_idx):
         x, y = batch
@@ -328,42 +337,44 @@ class LogisticRegression(pl.LightningModule):
 
 
 def calc_LR_accuracy(x_train, y_train, x_test, y_test):
-    # To CPU:
-    x_train = x_train.to(device)
-    y_train = y_train.to(device)
-    x_test = x_test.to(device)
-    y_test = y_test.to(device)
+    x_train = x_train.to("cpu")
+    x_test = x_test.to("cpu")
+    y_train = y_train.to("cpu")
+    y_test = y_test.to("cpu")
     LR_probe = LogisticRegression(x_train.shape[-1])
-    trainer = pl.Trainer(max_epochs=1000)
-    trainer.fit(LR_probe, DataLoader(TensorDataset(x_train, y_train), batch_size=32, shuffle=True))
+    trainer = pl.Trainer(max_epochs=100)
+    trainer.fit(
+        LR_probe,
+        DataLoader(TensorDataset(x_train, y_train), batch_size=32, shuffle=True),
+    )
     LR_probe.eval()
     # Accuracy:
-    y_hat = LR_probe(x_test)
+    y_hat = LR_probe(x_test).squeeze().sigmoid()
     y_hat = (y_hat > 0.5).float()
     acc = (y_hat == y_test).float().mean()
     print("Logistic regression accuracy: {}".format(acc))
     return LR_probe
 
 
-#LR_probe = LogisticRegression(class_weight="balanced")
-#def calc_LR_accuracy(x_train, y_train, x_test, y_test):
+# LR_probe = LogisticRegression(class_weight="balanced")
+# def calc_LR_accuracy(x_train, y_train, x_test, y_test):
 #    LR_probe.fit(x_train, y_train)
 #    print("Logistic regression accuracy: {}".format(LR_probe.score(x_test, y_test)))
 
 # %%
 print("One statement")
 statement_LR_probe = calc_LR_accuracy(*diff_ds)
-# Logistic regression accuracy: 0.75
+# Logistic regression accuracy: 0.8374999761581421
 
 # %%
 print("Disjunction statement")
 disj_LR_probe = calc_LR_accuracy(*diff_qans_disj_ds)
-# Logistic regression accuracy: 0.95
+# Logistic regression accuracy: 0.9937499761581421
 
 # %%
 print("Conjunction statement")
 conj_LR_probe = calc_LR_accuracy(*diff_qans_conj_ds)
-# Logistic regression accuracy: 0.975
+# Logistic regression accuracy: 1.0  -- Strange. Wrong data?
 
 
 # %%
@@ -480,10 +491,9 @@ class CCS(object):
 
         # Start training (full batch)
         epoch_j = list(
-            (epoch, j)
-            for epoch in range(self.nepochs)
-            for j in range(nbatches))
-        
+            (epoch, j) for epoch in range(self.nepochs) for j in range(nbatches)
+        )
+
         for epoch, j in epoch_j:
             x0_batch = x0[j * batch_size : (j + 1) * batch_size]
             x1_batch = x1[j * batch_size : (j + 1) * batch_size]
@@ -514,10 +524,17 @@ class CCS(object):
 
         return best_loss
 
+
 # %%
 def calc_random_probe_and_ccs_accuracies(
-    neg_hs_train, pos_hs_train, y_train, neg_hs_test, pos_hs_test, y_test,
-    lr=1e-3, batch_size=-1
+    neg_hs_train,
+    pos_hs_train,
+    y_train,
+    neg_hs_test,
+    pos_hs_test,
+    y_test,
+    lr=1e-3,
+    batch_size=-1,
 ):
     ccs = CCS(neg_hs_train, pos_hs_train, lr=lr, nepochs=500)
     rand_acc = ccs.get_acc(neg_hs_test, pos_hs_test, y_test)
@@ -528,7 +545,7 @@ def calc_random_probe_and_ccs_accuracies(
 
 
 # %%
-names =[
+names = [
     "One statement",
     "Disjunction",
     "Conjunction",
@@ -545,20 +562,24 @@ for lr in (1e-3, 1e-4, 1e-5):
             probe, rand_acc, ccs_acc = calc_random_probe_and_ccs_accuracies(*ds)
             if ccs_acc > best_probes[i][2]:
                 best_probes[i] = (probe, rand_acc, ccs_acc)
-                print(f"Best CCS accuracy: {best_probes[i][2]:.4}, random accuracy: {best_probes[i][1]:.4}")
+                print(
+                    f"Best CCS accuracy: {best_probes[i][2]:.4}, random accuracy: {best_probes[i][1]:.4}"
+                )
 
 # %%
 for i in range(3):
-    print(f"{names[i]} Best CCS accuracy: {best_probes[i][2]:.4}, random accuracy: {best_probes[i][1]:.4}")
+    print(
+        f"{names[i]} Best CCS accuracy: {best_probes[i][2]:.4}, random accuracy: {best_probes[i][1]:.4}"
+    )
 
-'''
+"""
 
 Пт 10 ноя 2023 15:10:14 MSK
 One statement. Best CCS accuracy: 0.8313, random accuracy: 0.5437
 Disjunction. Best CCS accuracy: 0.575, random accuracy: 0.5062
 Conjunction. Best CCS accuracy: 0.9938, random accuracy: 0.7125
 
-'''
+"""
 
 # %%
 # Part 2. MI

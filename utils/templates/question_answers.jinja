@@ -10,8 +10,8 @@ Q: Is it true that all positive numbers are positive? The correct answer to that
 
 A: True
 
-{% set a_A = incorrect_answers[0] if is_disjunction else correct_answers[0] %}
-{% set a_B = correct_answers[0] if is_correct_answer else incorrect_answers[0] %}
+{% set a_A = incorrect_answers[0] if is_disjunction else correct_answers[0] -%}
+{%- set a_B = correct_answers[1] if is_correct_answer else incorrect_answers[1] -%}
 
 Q: {{question}} The correct answer to that question will be {%- if is_disjunction %} either "{{a_A}}" or "{{a_B}}" {%- else %} both "{{a_A}}" and "{{a_B}}" {%- endif -%}, true or false?
 
