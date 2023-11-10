@@ -158,12 +158,12 @@ def calc_accuracy_for(is_disjunction):
 
 
 # %%
-calc_accuracy_for(True)
+calc_accuracy_for(is_disjunction=True)
 # Disjunction (OR):
 # Correct 331, count 522, accuracy 0.6341, both 72: 100%|██████████| 261/261 [00:58<00:00,  4.50it/s]
 
 # %%
-calc_accuracy_for(False)
+calc_accuracy_for(is_disjunction=False)
 # Conjunction (AND):
 # Correct 289, count 522, accuracy 0.5536, both 48: 100%|██████████| 261/261 [00:44<00:00,  5.84it/s]
 
@@ -189,7 +189,7 @@ def get_hidden_states(model, tokenizer, input_text, layer=-1):
     # get the appropriate hidden states
     hs_tuple = output["hidden_states"]
 
-    hs = hs_tuple[layer][0, -1].detach().cpu().numpy()
+    hs = hs_tuple[layer][0, -1].detach().cpu()
 
     return hs
 
@@ -253,11 +253,11 @@ def get_hidden_states_many_examples(
         # collect
         all_neg_hs.append(neg_hs)
         all_pos_hs.append(pos_hs)
-        all_gt_labels.append(true_label)
+        all_gt_labels.append(torch.tensor(true_label))
 
-    all_neg_hs = np.stack(all_neg_hs)
-    all_pos_hs = np.stack(all_pos_hs)
-    all_gt_labels = np.stack(all_gt_labels)
+    all_neg_hs = torch.stack(all_neg_hs)
+    all_pos_hs = torch.stack(all_pos_hs)
+    all_gt_labels = torch.stack(all_gt_labels)
 
     return all_neg_hs, all_pos_hs, all_gt_labels
 
@@ -290,7 +290,7 @@ def get_difference_hs_train_test_ds(
 
 # %%
 # Dataset
-NUM=800
+NUM=100
 hs_ds = get_hs_train_test_ds(n=NUM)
 hs_qans_conj_ds = get_hs_train_test_ds(
     template="question_answers.jinja", is_disjunction=False, n=NUM
@@ -328,10 +328,11 @@ class LogisticRegression(pl.LightningModule):
 
 
 def calc_LR_accuracy(x_train, y_train, x_test, y_test):
-    x_train = torch.tensor(x_train, dtype=torch.float)
-    y_train = torch.tensor(y_train, dtype=torch.float)
-    x_test = torch.tensor(x_test, dtype=torch.float)
-    y_test = torch.tensor(y_test, dtype=torch.float)
+    # To CPU:
+    x_train = x_train.to(device)
+    y_train = y_train.to(device)
+    x_test = x_test.to(device)
+    y_test = y_test.to(device)
     LR_probe = LogisticRegression(x_train.shape[-1])
     trainer = pl.Trainer(max_epochs=1000)
     trainer.fit(LR_probe, DataLoader(TensorDataset(x_train, y_train), batch_size=32, shuffle=True))
