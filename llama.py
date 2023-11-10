@@ -1,6 +1,6 @@
 # %%
 # from sklearn.linear_model import LogisticRegression
-from IPython.display import display
+from IPython.display import display, HTML
 from collections import namedtuple
 from datasets import load_dataset
 from huggingface_hub import login
@@ -22,6 +22,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import transformer_lens.utils as utils
 import transformers
+import circuitsvis as cv
+from einops import einsum
 
 # %%
 login()
@@ -676,22 +678,8 @@ truthfulqa = load_dataset("truthful_qa", "generation")  # 817 rows
 env = Environment(loader=PackageLoader("utils"), autoescape=select_autoescape())
 
 # %%
-# One sentence:
-row_id = 125
-
-row = truthfulqa["validation"][row_id]
-env_t = env.get_template("question_answer.jinja")
-input_text = env_t.render(row, is_correct_answer=True, label=str(False))
-with torch.no_grad():
-    logits, cache = model.run_with_cache(input_text)
-# Last layer hidden states:
-final_residual_stream = cache["resid_post", -1]
-
-d_model = model.cfg.d_model
-assert d_model == final_residual_stream.shape[-1]
-
-# %%
 # Load probes:
+d_model = model.cfg.d_model
 LR_probes = []
 
 for p_paths in [
@@ -720,4 +708,30 @@ for i, name in enumerate(names):
     probe.eval()
     ccs_probes.append(probe)
     pp(probe)
+
+# %%
+# Get examples
+# One sentence
+row_id = 125
+row = truthfulqa["validation"][row_id]
+env_t = env.get_template("question_answer.jinja")
+input_text = env_t.render(row, is_correct_answer=True, label=str(False))
+with torch.no_grad():
+    logits, cache = model.run_with_cache(input_text)
+# Last layer hidden states:
+final_residual_stream = cache["resid_post", -1]
+assert d_model == final_residual_stream.shape[-1]
+
+# %%
+# Visualising Attention Heads
+attention_pattern = cache["pattern", 0, "attn"]
+print(attention_pattern.shape)
+str_tokens = model.to_str_tokens(input_text)
+
+print("Layer 0 Head Attention Patterns:")
+display(cv.attention.attention_patterns(
+    tokens=str_tokens, 
+    attention=attention_pattern,
+    #attention_head_names=[f"L0H{i}" for i in range(12)],   # Breaks for me.
+))
 # %%
