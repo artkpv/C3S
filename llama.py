@@ -23,7 +23,9 @@ import torch.nn.functional as F
 import transformer_lens.utils as utils
 import transformers
 import circuitsvis as cv
-from einops import einsum
+from einops import einops
+from fancy_einsum import einsum
+import plotly.express as px
 
 # %%
 login()
@@ -641,6 +643,36 @@ torch.save(
 # ==========
 
 # %%
+torch.set_grad_enabled(False)
+print("Disabled automatic differentiation")
+
+def imshow(tensor, **kwargs):
+    px.imshow(
+        utils.to_numpy(tensor),
+        color_continuous_midpoint=0.0,
+        color_continuous_scale="RdBu",
+        **kwargs,
+    ).show()
+
+
+def line(tensor, **kwargs):
+    px.line(
+        y=utils.to_numpy(tensor),
+        **kwargs,
+    ).show()
+
+
+def scatter(x, y, xaxis="", yaxis="", caxis="", **kwargs):
+    x = utils.to_numpy(x)
+    y = utils.to_numpy(y)
+    px.scatter(
+        y=y,
+        x=x,
+        labels={"x": xaxis, "y": yaxis, "color": caxis},
+        **kwargs,
+    ).show()
+
+# %%
 tokenizer = LlamaTokenizer.from_pretrained(
     "meta-llama/Llama-2-7b-chat-hf",
     # device_map=device,
@@ -711,27 +743,108 @@ for i, name in enumerate(names):
 
 # %%
 # Get examples
-# One sentence
 row_id = 125
 row = truthfulqa["validation"][row_id]
+
+# One sentence
 env_t = env.get_template("question_answer.jinja")
-input_text = env_t.render(row, is_correct_answer=True, label=str(False))
+one_s_input_text = env_t.render(row, is_correct_answer=True, label=str(False))
 with torch.no_grad():
-    logits, cache = model.run_with_cache(input_text)
-# Last layer hidden states:
-final_residual_stream = cache["resid_post", -1]
-assert d_model == final_residual_stream.shape[-1]
+    logits, cache = model.run_with_cache(one_s_input_text)
+one_statement_cache = cache
+
 
 # %%
-# Visualising Attention Heads
-attention_pattern = cache["pattern", 0, "attn"]
-print(attention_pattern.shape)
-str_tokens = model.to_str_tokens(input_text)
+tokens = model.to_str_tokens(one_s_input_text)
+answer_token = tokens[-1]
+answer_logit_direction = model.tokens_to_residual_directions(answer_token).unsqueeze(0)
 
-print("Layer 0 Head Attention Patterns:")
-cv.attention.attention_patterns(
-    tokens=str_tokens, 
-    attention=attention_pattern,
-    #attention_head_names=[f"L0H{i}" for i in range(12)],   # Breaks for me.
+def residual_stack_to_logit(
+    residual_stack: Float[torch.Tensor, "components batch d_model"],
+    cache: ActivationCache,
+) -> float:
+    scaled_residual_stack = cache.apply_ln_to_stack(
+        residual_stack, layer=-1, pos_slice=-1
+    )
+    pp(scaled_residual_stack.shape)
+    pp(answer_logit_direction.shape)
+    res = einsum(
+        "comp batch d_model, batch d_model -> comp",
+        scaled_residual_stack,
+        answer_logit_direction,
+    ) / len(tokens)
+    return res.cpu().float()
+
+
+#%%
+## Layer Attribution
+per_layer_residual, labels = cache.decompose_resid(
+    layer=-1, pos_slice=-1, return_labels=True
+)
+per_layer_logit_diffs = residual_stack_to_logit(per_layer_residual, cache)
+line(per_layer_logit_diffs, hover_name=labels, title="Logit attribution From Each Layer")
+
+# %%
+## Head Attribution
+per_head_residual, labels = cache.stack_head_results(
+    layer=-1, pos_slice=-1, return_labels=True
+)
+per_head_logit_sums = residual_stack_to_logit(per_head_residual, cache)
+per_head_logit_sums = einops.rearrange(
+    per_head_logit_sums,
+    "(layer head_index) -> layer head_index",
+    layer=model.cfg.n_layers,
+    head_index=model.cfg.n_heads,
+)
+imshow(
+    per_head_logit_sums,
+    labels={"x": "Head", "y": "Layer"},
+    title="Logit Attribution From Each Head",
 )
 # %%
+
+#%%
+# Visualising Attention Heads - one statement
+layer=22
+print(f"Attention patterns - {layer}")
+display(cv.attention.attention_patterns(
+    tokens=model.to_str_tokens(one_s_input_text), 
+    attention=one_statement_cache["pattern", layer, "attn"][0],
+))
+
+
+# %%
+# Conjunction
+env_t = env.get_template("question_answers.jinja")
+conj_input_text = env_t.render(row, is_correct_answer=True, label=str(True), is_disjunction=False)
+with torch.no_grad():
+    logits, cache = model.run_with_cache(conj_input_text)
+conjunction_cache = cache
+
+# %%
+# Disjunction
+env_t = env.get_template("question_answers.jinja")
+disj_input_text = env_t.render(row, is_correct_answer=True, label=str(True), is_disjunction=True)
+with torch.no_grad():
+    logits, cache = model.run_with_cache(disj_input_text)
+disjunction_cache = cache
+
+# %%
+# Visualising Attention Heads - Conjunction
+layer=-3
+display(cv.attention.attention_patterns(
+    tokens=model.to_str_tokens(input_text), 
+    attention=conjunction_cache["pattern", layer, "attn"][0],
+))
+
+
+# %%
+# Visualising Attention Heads - Conjunction
+layer=-3
+attention_pattern = disjunction_cache["pattern", layer, "attn"][0]
+str_tokens = model.to_str_tokens(input_text)
+
+display(cv.attention.attention_patterns(
+    tokens=str_tokens, 
+    attention=attention_pattern,
+))
