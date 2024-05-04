@@ -1,0 +1,4 @@
+,FS (1634 samples),FS on known,LR (164 samples),LR on known,CCS (164 samples),CCS on known,Random (mean) ± std
+One statement,59.5,,84.1,,76.8,,60.1 ± 6.5
+Disjunction,52.9,13.3,79.3,82.6,51.8,60.5,54.4 ± 3.4
+Conjunction,59.6,35.7,84.1,85.5,54.3,73.7,56.6 ± 4.6

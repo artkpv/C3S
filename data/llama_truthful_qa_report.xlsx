@@ -1,0 +1,4 @@
+,Few shot,LR,CCS,Random (mean) ± std
+One statement,59.5,85.0,75.0,60.6 ± 6.9
+Disjunction,52.6,77.5,55.0,55.0 ± 3.6
+Conjunction,59.2,81.9,56.2,57.2 ± 5.2

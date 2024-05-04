@@ -1,0 +1,44 @@
+defaults:
+  - model: llama70b
+
+hydra:
+  run:
+    dir: ./artifacts/${now:%Y-%m-%d}/${now:%H-%M-%S}-${model.name}
+  job:
+    chdir: true
+
+data_dir: data
+
+probes_dir: data
+
+# Maximum number of samples generated per question:
+max_samples_per_question: 2
+
+pt_template : ggplot2
+
+one_template: question_answer.jinja
+disj_template: question_answers_fs.jinja
+conj_template: question_answers_fs.jinja
+
+# Logistic Regression:
+lr: 
+  # Learning rate:
+  lr : 1e-3
+  batch_size: -1
+  epochs: 1000
+
+# Contrast Consistent Search:
+ccs:
+  # Learning rate:
+  lr: 1e-3
+  batch_size: -1
+  var_normalize: true
+  epsilon : 1e-8
+  tries: 6
+  epochs: 1000
+
+random_tries: 2
+
+split_ratio: 0.8
+
+probes: [ccs, lr]  #  ccs, lr, c3s

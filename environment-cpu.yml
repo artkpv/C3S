@@ -1,0 +1,35 @@
+channels:
+  - nvidia
+  - pytorch
+  - conda-forge
+  - r
+  - defaults
+dependencies:
+  - httpcore
+  - sniffio
+  - einops
+  - cpuonly
+  - conda-forge::datasets
+  - conda-forge::transformers
+  - conda-forge::tokenizers>=0.13.3
+  - ipykernel
+  - ipywidgets
+  - jaxtyping
+  - numpy
+  - plotly
+  - protobuf
+  - pynvml
+  - python==3.10
+  - pytorch::pytorch
+  - scikit-learn
+  - sentencepiece
+  - simple-parsing
+  - torchaudio
+  - torchvision 
+  - tqdm
+  - git
+  - pip
+  - pip:
+    - circuitsvis
+    - transformer-lens
+    - "-e lib/elk"

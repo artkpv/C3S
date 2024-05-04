@@ -1,2 +1,6 @@
 .hypothesis
 __pycache__
+data/llama-7bf
+lightning_logs
+checkpoints
+artifacts

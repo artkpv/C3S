@@ -1,0 +1,19 @@
+ipykernel
+numpy
+pytorch
+pytorch-cuda
+protobuf
+pynvml
+einops
+ipywidgets
+tqdm
+scikit-learn
+simple-parsing
+plotly
+datasets
+sentencepiece
+jaxtyping
+transformers
+circuitsvis  # pip
+transformer_lens  # pip
+-e lib/elk  # pip

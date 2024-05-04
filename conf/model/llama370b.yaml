@@ -1,0 +1,5 @@
+name: llama370b
+model_name : meta-llama/Meta-Llama-3-70B-Instruct
+load_in_8bit : true
+layer: 40
+dtype: auto

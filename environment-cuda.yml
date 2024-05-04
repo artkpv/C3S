@@ -1,0 +1,30 @@
+channels:
+  - r
+  - nvidia
+  - pytorch
+  - defaults
+dependencies:
+  - conda-forge::accelerate
+  - conda-forge::datasets
+  - conda-forge::tokenizers >= 0.13.3
+  - conda-forge::transformers
+  - einops
+  - httpcore
+  - ipykernel
+  - ipywidgets
+  - jaxtyping
+  - numpy
+  - plotly
+  - protobuf
+  - pynvml
+  - python==3.10
+  - pytorch-cuda 
+  - pytorch::pytorch
+  - pytorch::torchaudio
+  - pytorch::torchvision
+  - scikit-learn
+  - sentencepiece
+  - simple-parsing
+  - sniffio
+  - tqdm
+  - git

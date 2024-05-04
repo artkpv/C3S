@@ -1,0 +1,5 @@
+name: llama70b
+model_name : meta-llama/Llama-2-70b-chat-hf
+load_in_8bit : true
+layer: 40
+dtype: auto
